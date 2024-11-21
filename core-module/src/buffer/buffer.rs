@@ -153,7 +153,7 @@ pub trait PacketBuffer {
     fn pos(&self) -> usize;
 
     /// Sets a byte at a specific position.
-    fn set(&mut self, pos: usize, val: u8) -> Resutl<()>;
+    fn set(&mut self, pos: usize, val: u8) -> Result<()>;
 }
 
 
@@ -307,12 +307,12 @@ where
     }
 
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
-       while start + len > self.buffer.len() {
-            let mut temp_buffer = [0; len.min(512)];
-            let bytes_read = self.stream.read(&mut temp_buffer)?;
-            self.buffer.extend_from_slice(&temp_buffer[..bytes_read]);
-       }
-       Ok(&self.buffer[start..start + len])
+      while start + len > self.buffer.len() {
+          let mut temp_buffer = [0; len.min(512)];
+          let bytes_read = self.stream.read(&mut temp_buffer)?;
+          self.buffer.extend_from_slice(&temp_buffer[..bytes_read]);
+      }
+      Ok(&self.buffer[start..start + len])
     }
 
     fn write(&mut self, _: u8) -> Result<()> {
