@@ -29,13 +29,16 @@ pub trait PacketBuffer {
        Ok(((self.read()? as u16) << 8) | (self.read()? as u16))
     }
 
-    /// Reads a 32-bit value from the buffer.
+    /// Reads a 32-bit value from the buffer
     fn read_u32(&mut self) -> Result<u32> {
-       Ok((self.read()? as u32) << 24))
-           | ((self.read()? as u32) << 16)
-           | ((self.read()? as u32) << 8)
-           | ((self.read()? as u32))
-    }
+      Ok(((self.read()? as u32) << 24)
+          | ((self.read()? as u32) << 16)
+          | ((self.read()? as u32) << 8)
+          | (self.read()? as u32)
+         )
+  }
+
+
 
     /// Reads a domain name (QNAME) from the buffer.
     fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
