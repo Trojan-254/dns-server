@@ -237,7 +237,7 @@ impl PacketBuffer for VectorPacketBuffer {
 
     fn step(&mut self, steps: usize) -> Result<()> {
        if self.pos + steps > self.buffer.len() {
-          Err(BufferError::EndOfBuffer);
+          return Err(BufferError::EndOfBuffer);
        }
        self.pos += steps;
 
