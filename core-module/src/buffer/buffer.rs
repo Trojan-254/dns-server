@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_byte_packet_buffer() {
-        let mut buffer = BytePacketBuffer::new();
+        let mut buffer = PacketBuffer::new();
 
         // Test writing within buffer limits
         for i in 0..512 {
