@@ -31,7 +31,7 @@ pub trait PacketBuffer {
 
     /// Reads a 32-bit value from the buffer.
     fn read_u32(&mut self) -> Result<u32> {
-       Ok(((self.read()? as u32) << 24))
+       Ok((self.read()? as u32) << 24))
            | ((self.read()? as u32) << 16)
            | ((self.read()? as u32) << 8)
            | ((self.read()? as u32))
@@ -147,7 +147,7 @@ pub trait PacketBuffer {
     fn step(&mut self, steps: usize) -> Result<()>;
 
     /// Returns the current position in the buffer.
-    fn pos(self) -> usize;
+    fn pos(&self) -> usize;
 
     /// Sets a byte at a specific position.
     fn set(&mut self, pos: usize, val: u8) -> Resutl<()>;
@@ -278,7 +278,7 @@ where
         None
     }
 
-    fn save_label(&mut self, _:&str) {
+    fn save_label(&mut self, _:&str, _:usize) {
        unimplemented!();
     }
 

@@ -2,5 +2,7 @@
 name = "core-module"
 version = "0.1.0"
 edition = "2021"
+author = ["Samwuel Simiyu"]
 
 [dependencies]
+derive_more = "0.99.9"
