@@ -120,7 +120,7 @@ pub trait PacketBuffer {
           self.write_u8(label.len() as u8)?;
           self.write_all(label.as_bytes())?;
         }
-        self.write_u8(0) // Null-terminate QNAME
+        self.write_u8(0); // Null-terminate QNAME
 
         Ok(())
     }
@@ -130,7 +130,7 @@ pub trait PacketBuffer {
     fn get(&mut self, pos: usize) -> Result<u8>;
 
     /// Gets a range of bytes starting from a specific position.
-    fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]>
+    fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]>;
 
 
     /// Finds a saved label's position.
@@ -246,7 +246,7 @@ impl PacketBuffer for VectorPacketBuffer {
 }
 
 
-pub struct StreamPacketBuffer<'a T>
+pub struct StreamPacketBuffer<'a, T>
 where
     T: Read,
 {
