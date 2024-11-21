@@ -31,7 +31,7 @@ pub trait PacketBuffer {
 
     /// Reads a 32-bit value from the buffer.
     fn read_u32(&mut self) -> Result<u32> {
-       Ok(((self.read()? as u32) << 24)
+       Ok(((self.read()? as u32) << 24))
            | ((self.read()? as u32) << 16)
            | ((self.read()? as u32) << 8)
            | ((self.read()? as u32))
@@ -465,5 +465,6 @@ mod tests {
         // Test out-of-bounds errors
         assert!(buffer.get(600).is_err(), "Expected out-of-bounds error on get");
         assert!(buffer.get_range(510, 5).is_err(), "Expected out-of-bounds error on get_range");
-    }
+      }
+   }
 }
