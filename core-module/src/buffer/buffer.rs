@@ -2,10 +2,20 @@
 
 use std::io::Read;
 use std::collections::BTreeMap;
-
+use std::fmt;
 
 use derive_more::{Display, Error, From};
 
+#[derive(Debug)]
+struct StringError(String);
+
+impl fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+       write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for StringError {}
 
 #[derive(Debug, Display, From, Error)]
 pub enum BufferError {
@@ -14,16 +24,25 @@ pub enum BufferError {
     #[display(fmt = "End of buffer reached")]
     EndOfBuffer,
     #[display(fmt = "Invalid buffer access at position {}", _0)]
-    InvalidBufferAccess(String),
+    InvalidBufferAccess(StringError),
 }
 
 
 type Result<T> = std::result::Result<T, BufferError>;
 
-pub trait PacketBuffer:std::io::Write {
+pub trait PacketBuffer {
     /// Reads the next byte from the buffer.
     fn read(&mut self) -> Result<u8>;
 
+    fn write_all(&mut self, buf: &[u8]) -> Result<()> {
+        for &byte in buf {
+
+        self.write(byte)?;
+
+        }
+        Ok(())
+    }
+    
     /// Reads a 16-bit value from the buffer.
     fn read_u16(&mut self) -> Result<u16> {
        Ok(((self.read()? as u16) << 8) | (self.read()? as u16))
@@ -37,7 +56,7 @@ pub trait PacketBuffer:std::io::Write {
           | (self.read()? as u32)
          )
   }
-
+    
 
 
     /// Reads a domain name (QNAME) from the buffer.
@@ -373,6 +392,7 @@ mod tests {
 
       // Verify the buffer position
       assert_eq!(buffer.pos, buffer.buffer.len(), "Buffer position mismatch");
+     }
 
      #[test]
      fn test_write_qname() {
@@ -441,7 +461,7 @@ mod tests {
         // Test get_range with stream expansion
         buffer.seek(0).unwrap();
         assert_eq!(buffer.get_range(0, 5).unwrap(), &[1, 2, 3, 4, 5], "Get range mismatch");
-    }
+     }
 
     #[test]
     fn test_byte_packet_buffer() {
@@ -469,5 +489,4 @@ mod tests {
         assert!(buffer.get(600).is_err(), "Expected out-of-bounds error on get");
         assert!(buffer.get_range(510, 5).is_err(), "Expected out-of-bounds error on get_range");
       }
-   }
 }
