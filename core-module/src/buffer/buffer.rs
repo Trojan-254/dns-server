@@ -142,7 +142,7 @@ pub trait PacketBuffer {
           self.write_u8(label.len() as u8)?;
           self.write_all(label.as_bytes())?;
         }
-        self.write_u8(0); // Null-terminate QNAME
+        let _ = self.write_u8(0); // Null-terminate QNAME
 
         Ok(())
     }
