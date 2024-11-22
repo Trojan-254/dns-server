@@ -14,13 +14,13 @@ pub enum BufferError {
     #[display(fmt = "End of buffer reached")]
     EndOfBuffer,
     #[display(fmt = "Invalid buffer access at position {}", _0)]
-    InvalidBufferAccess(usize),
+    InvalidBufferAccess(String),
 }
 
 
 type Result<T> = std::result::Result<T, BufferError>;
 
-pub trait PacketBuffer {
+pub trait PacketBuffer:std::io::Write {
     /// Reads the next byte from the buffer.
     fn read(&mut self) -> Result<u8>;
 
@@ -115,7 +115,7 @@ pub trait PacketBuffer {
         let labels = qname.split('.');
         for label in labels {
           if label.len() > 63 {
-             return Err(BufferError::io(std::io::Error::new(
+             return Err(BufferError::Io(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 "Label too long",
              )));
@@ -263,7 +263,7 @@ where
     T: Read + 'a,
 {
     /// Creates a new `StreamPacketBuffer` with an optional pre-allocated buffer size.
-    pub fn new(stream: &'a T) -> StreamPacketBuffer<'_, T> {
+    pub fn new(stream: &'a mut T) -> StreamPacketBuffer<'_, T> {
         StreamPacketBuffer {
            stream: stream,
            buffer: Vec::with_capacity(512),
@@ -308,7 +308,7 @@ where
 
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
       while start + len > self.buffer.len() {
-          let mut temp_buffer = [0; len.min(512)];
+          let mut temp_buffer = vec![0; len.min(512)];
           let bytes_read = self.stream.read(&mut temp_buffer)?;
           self.buffer.extend_from_slice(&temp_buffer[..bytes_read]);
       }
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_byte_packet_buffer() {
-        let mut buffer = <dyn PacketBuffer>::new();
+        let mut buffer = VectorPacketBuffer::new();
 
         // Test writing within buffer limits
         for i in 0..512 {
