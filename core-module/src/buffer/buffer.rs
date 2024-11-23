@@ -179,12 +179,15 @@ pub trait PacketBuffer {
         Ok(())
     }
 
-    fn is_compression_pointer(&self, len: u8) -> bool {
+    fn is_compression_pointer(&mut self, len: u8) -> bool {
         (len & 0xC0) > 0
     }
 
-    fn calculate_offset(&self, pos: usize, len: u8) -> usize {
-        let b2 = self.get(pos + 1)? as u16;
+    fn calculate_offset(&mut self, pos: usize, len: u8) -> usize {
+        let b2 = match self.get(pos + 1){
+            Ok(val) => val as u16,
+            Err(_) => return usize::MAX,
+        };
         let offset = (((len as u16) ^ 0xC0) << 8) | b2;
         offset as usize
     }
