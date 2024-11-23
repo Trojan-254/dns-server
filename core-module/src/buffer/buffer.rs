@@ -640,4 +640,116 @@ mod tests {
     
     //     assert_eq!(buffer.buffer, expected);
     // }
+
+    // Test case 1: Basic case without compression
+    #[test]
+    fn test_read_qname_basic() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 0],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "www.com");
+    }
+
+    // Test case 2: Basic case with compression
+    #[test]
+    fn test_read_qname_compression() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![
+                3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 0, // "www.com"
+                0xC0, 0x00 // Compression pointer to the first label
+            ],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "www.com");
+    }
+
+    // Test case 3: Empty label
+    #[test]
+    fn test_read_qname_empty_label() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 0, 0], // Empty label at the end
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "www.com");
+    }
+
+    // Test case 4: Compression pointer jump
+    #[test]
+    fn test_read_qname_compression_jump() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![
+                3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 0, // "www.com"
+                0xC0, 0x00, // Compression pointer to the first label
+                0xC0, 0x03  // Compression pointer to the second label
+            ],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "www.com");
+    }
+
+    // Test case 5: Invalid domain with bad compression pointer
+    #[test]
+    fn test_read_qname_invalid_compression_pointer() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![
+                3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 0, // "www.com"
+                0xC0, 0xFF, // Invalid compression pointer, out of bounds
+            ],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        // Should return an error due to the invalid pointer
+        assert!(buffer.read_qname(&mut result).is_err());
+    }
+
+    // Test case 6: Multiple labels
+    #[test]
+    fn test_read_qname_multiple_labels() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![
+                3, b'w', b'w', b'w', 3, b'c', b'o', b'm', 3, b'e', b'd', b'u', 0
+            ],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "www.com.edu");
+    }
+
+    // Test case 7: Non-ASCII characters
+    #[test]
+    fn test_read_qname_non_ascii() {
+        let mut buffer = VectorPacketBuffer {
+            buffer: vec![
+                4, b'k', b'ü', b'n', b'a', 3, b'c', b'o', b'm', 0
+            ],
+            pos: 0,
+            label_lookup: BTreeMap::new(),
+        };
+        let mut result = String::new();
+        
+        assert!(buffer.read_qname(&mut result).is_ok());
+        assert_eq!(result, "kün.a.com");
+    }
 }
