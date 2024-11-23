@@ -742,14 +742,16 @@ mod tests {
     fn test_read_qname_non_ascii() {
         let mut buffer = VectorPacketBuffer {
             buffer: vec![
-                4, b'k', b'\xFC', b'n', b'a', 3, b'c', b'o', b'm', 0
+                4, b'k', 0xC3, 0xBC, b'n', b'a', 3, b'c', b'o', b'm', 0, // "kün.a.com"
             ],
             pos: 0,
             label_lookup: BTreeMap::new(),
         };
         let mut result = String::new();
-        
+    
+        // Ensure the QNAME is read correctly with non-ASCII characters
         assert!(buffer.read_qname(&mut result).is_ok());
         assert_eq!(result, "kün.a.com");
     }
+
 }
