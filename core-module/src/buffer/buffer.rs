@@ -1,202 +1,168 @@
-// Buffer for writing and reading dns packects
+//! buffers for use when writing and reading dns packets
 
-use std::io::Read;
 use std::collections::BTreeMap;
-use std::fmt;
+use std::io::Read;
 
 use derive_more::{Display, Error, From};
 
-#[derive(Debug)]
-struct StringError(String);
-
-impl fmt::Display for StringError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-       write!(f, "{}", self.0)
-    }
-}
-
-impl std::error::Error for StringError {}
-
 #[derive(Debug, Display, From, Error)]
 pub enum BufferError {
-    #[display(fmt = "I/O Error: {}", _0)]
     Io(std::io::Error),
-    #[display(fmt = "End of buffer reached")]
     EndOfBuffer,
-    #[display(fmt = "Invalid buffer access at position {}", _0)]
-    InvalidBufferAccess(StringError),
 }
-
 
 type Result<T> = std::result::Result<T, BufferError>;
 
+/// A trait for managing operations on the packet buffer.
+/// This trait abstracts reading, writing and manageing byte-level data.
 pub trait PacketBuffer {
-    /// Reads the next byte from the buffer.
+    /// Reads a single byte at the current buffer position.
+    /// Advances the position by one byte.
+    ///
+    /// # Returns
+    /// - `Ok(u8)` containing the byte if succesfull.
+    /// - `Err(BufferError)` if reading fails.
     fn read(&mut self) -> Result<u8>;
 
-    fn write_all(&mut self, buf: &[u8]) -> Result<()> {
-        for &byte in buf {
 
-        self.write(byte)?;
-
-        }
-        Ok(())
-    }
     
-    /// Reads a 16-bit value from the buffer.
     fn read_u16(&mut self) -> Result<u16> {
-       Ok(((self.read()? as u16) << 8) | (self.read()? as u16))
+        let res = ((self.read()? as u16) << 8) | (self.read()? as u16);
+
+        Ok(res)
     }
 
-    /// Reads a 32-bit value from the buffer
     fn read_u32(&mut self) -> Result<u32> {
-      Ok(((self.read()? as u32) << 24)
-          | ((self.read()? as u32) << 16)
-          | ((self.read()? as u32) << 8)
-          | (self.read()? as u32)
-         )
-  }
-    
+        let res = ((self.read()? as u32) << 24)
+            | ((self.read()? as u32) << 16)
+            | ((self.read()? as u32) << 8)
+            | ((self.read()? as u32) << 0);
 
-
-    /// Reads a domain name (QNAME) from the buffer.
-    fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
-       let mut pos = self.pos();
-       let mut jumped = false;
-
-       let mut delim = "";
-       loop {
-          let len = self.get(pos)?;
-
-          // Two byte sequence where the highest two bits of the first byte is set
-          // this represents the offset relative to the start of the buffer .
-          // this is handled by jumping to the offset, setting a flag to indicate 
-          // that we should NOT update the shared buffer position once done.
-          if (len & 0xC0) > 0 {
-             // Whenever a jump is perfomed, we only modify the shared buffer
-             // positioning once, and avoid making the change later on.
-             if !jumped {
-                self.seek(pos + 2)?;
-             }
-             let offset = (((len as u16) ^ 0xC00) << 8) | self.get(pos + 1)? as u16;
-             pos = offset as usize;
-             jumped = true;
-             continue;
-          }
-
-          // Names will be terminated by an empty label of lenght 0
-          if len == 0 {
-             break;
-          }
-
-          pos += 1;
-
-          let label_bytes = self.get_range(pos, len as usize)?;
-          outstr.push_str(delim);
-          outstr.push_str(&String::from_utf8_lossy(label_bytes));
-          delim = ".";
-          pos += len as usize;
-
-       }
-
-       if !jumped {
-          self.seek(pos)?;
-       }
-       Ok(())
+        Ok(res)
     }
 
-    /// Writes a buffer to the current position in the buffer.
-    fn write(&mut self, val: u8) -> Result<()>;
-
-    /// Writes a single byte to the buffer.
-    fn write_u8(&mut self, val: u8) -> Result<()> {
-       self.write(val)?;
-       Ok(())
-    }
-
-    /// Writes a 16-bit value to the buffer.
-    fn write_u16(&mut self, val: u16) -> Result<()> {
-       self.write((val >> 8) as u8)?;
-       self.write((val & 0xFF) as u8)?;
-       Ok(())
-    }
-
-    /// Writes a 32-bit value to the buffer.
-    fn write_u32(&mut self, val: u32) -> Result<()> {
-       for i in (0..4).rev() {
-           self.write(((val >> (i * 8)) & 0xFF) as u8)?;
-       }
-       Ok(())
-    }
-
-    /// Writes a domain name(QNAME) to the buffer.
-    fn write_qname(&mut self, qname: &str) -> Result<()> {
-        let labels: Vec<&str> = qname.split('.').collect();
-        let mut jumps_perfomed: bool = false;
-
-        // process each label
-        for (index, label) in labels.iter().enumerate() {
-            let remaining_labels = &labels[index..];
-            let remaining_name = remaining_labels.join(".");
-
-            if let Some(previous_position) = self.find_label(&remaining_name) {
-               let jump_instruction = (previous_position as u16) | 0xC000;
-               self.write_u16(jump_instruction)?;
-               jumps_perfomed = true;
-               break;
-            }
-
-            let current_position = self.pos();
-            self.save_label(&remaining_name, current_position);
-
-            let label_length = label.len();
-            if label_length > 63 {
-               return Err(BufferError::Io(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    "Label too long"
-               )));
-            }
-            self.write_u8(label_length as u8)?;
-            for &byte in label.as_bytes() {
-                self.write_u8(byte)?;
-            }
-        }
-
-        if !jumps_perfomed {
-           self.write_u8(0)?;
-        }
-
-        Ok(())
-    }
-
-
-    /// Gets the byte at a specific position.
     fn get(&mut self, pos: usize) -> Result<u8>;
-
-    /// Gets a range of bytes starting from a specific position.
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]>;
-
-
-    /// Finds a saved label's position.
+    fn write(&mut self, val: u8) -> Result<()>;
+    fn set(&mut self, pos: usize, val: u8) -> Result<()>;
+    fn pos(&self) -> usize;
+    fn seek(&mut self, pos: usize) -> Result<()>;
+    fn step(&mut self, steps: usize) -> Result<()>;
     fn find_label(&self, label: &str) -> Option<usize>;
-
-    /// Saves a labe at athe current position.
     fn save_label(&mut self, label: &str, pos: usize);
 
+    fn write_u8(&mut self, val: u8) -> Result<()> {
+        self.write(val)?;
 
-    /// Seeks a specific position in the buffer.
-    fn seek(&mut self, pos: usize) -> Result<()>;
+        Ok(())
+    }
 
-    /// Moves the position by a specific number of steps.
-    fn step(&mut self, steps: usize) -> Result<()>;
+    fn set_u16(&mut self, pos: usize, val: u16) -> Result<()> {
+        self.set(pos, (val >> 8) as u8)?;
+        self.set(pos + 1, (val & 0xFF) as u8)?;
 
-    /// Returns the current position in the buffer.
-    fn pos(&self) -> usize;
+        Ok(())
+    }
 
-    /// Sets a byte at a specific position.
-    fn set(&mut self, pos: usize, val: u8) -> Result<()>;
+    fn write_all(&mut self, bytes: &[u8]) -> Result<()> {
+       for &b in bytes {
+          self.write(b)?;
+       }
+       Ok(())
+    }
+
+    fn write_u16(&mut self, val: u16) -> Result<()> {
+        self.write((val >> 8) as u8)?;
+        self.write((val & 0xFF) as u8)?;
+
+        Ok(())
+    }
+
+    fn write_u32(&mut self, val: u32) -> Result<()> {
+        self.write(((val >> 24) & 0xFF) as u8)?;
+        self.write(((val >> 16) & 0xFF) as u8)?;
+        self.write(((val >> 8) & 0xFF) as u8)?;
+        self.write(((val >> 0) & 0xFF) as u8)?;
+
+        Ok(())
+    }
+
+    fn write_qname(&mut self, qname: &str) -> Result<()> {
+        let labels = qname.split('.').collect::<Vec<&str>>();
+        let mut jumped = false;
+
+        for (i, label) in labels.iter().enumerate() {
+            let remaining_qname = labels[i..].join(".");
+            if let Some(pos) = self.find_label(&remaining_qname) {
+                self.write_u16((pos as u16) | 0xC000)?;
+                jumped = true;
+                break;
+            }
+
+            self.save_label(&remaining_qname, self.pos());
+            self.write_u8(label.len() as u8)?;
+            self.write_all(label.as_bytes())?;
+        }
+
+        if !jumped {
+            self.write_u8(0)?;
+        }
+
+        Ok(())
+    }
+
+
+
+
+    fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
+        let mut pos = self.pos();
+        let mut jumped = false;
+
+        let mut delimeter = "";
+        loop {
+            // Read the label length.
+            let len = self.get(pos)?;
+
+            // A two byte sequence, where the two highest bits of the first byte is
+            // set, represents a offset relative to the start of the buffer. We
+            // handle this by jumping to the offset, setting a flag to indicate
+            // that we shouldn't update the shared buffer position once done.
+            if (len & 0xC0) > 0 {
+                // When a jump is performed, we only modify the shared buffer
+                // position once, and avoid making the change later on.
+                if !jumped {
+                    self.seek(pos + 2)?;
+                }
+                let offset = (((len as u16) ^ 0xC0) << 8) | self.get(pos + 1)? as u16;
+                pos = offset as usize;
+                jumped = true;
+                continue;
+            }
+
+            pos += 1;
+
+            // Names are terminated by an empty label of length 0
+            if len == 0 {
+                break;
+            }
+
+            outstr.push_str(delimeter);
+
+            let label = self.get_range(pos, len as usize)?;
+            outstr.push_str(&String::from_utf8_lossy(label).to_lowercase());
+
+            delimeter = ".";
+
+            pos += len as usize;
+        }
+
+        if !jumped {
+            self.seek(pos)?;
+        }
+
+        Ok(())
+    }
 }
-
 
 #[derive(Default)]
 pub struct VectorPacketBuffer {
@@ -206,89 +172,68 @@ pub struct VectorPacketBuffer {
 }
 
 impl VectorPacketBuffer {
-    /// Creates a new `VectorPacketBuffer` with a default initial capacity 
     pub fn new() -> VectorPacketBuffer {
         VectorPacketBuffer {
-            buffer: Vec::with_capacity(512),
+            buffer: Vec::new(),
             pos: 0,
             label_lookup: BTreeMap::new(),
         }
     }
 }
 
-
 impl PacketBuffer for VectorPacketBuffer {
     fn find_label(&self, label: &str) -> Option<usize> {
-       self.label_lookup.get(label).cloned()
+        self.label_lookup.get(label).cloned()
     }
 
     fn save_label(&mut self, label: &str, pos: usize) {
-       self.label_lookup.insert(label.to_string(), pos);
+        self.label_lookup.insert(label.to_string(), pos);
     }
 
     fn read(&mut self) -> Result<u8> {
-       if self.pos >= self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       let res = self.buffer[self.pos];
-       self.pos += 1;
+        let res = self.buffer[self.pos];
+        self.pos += 1;
 
-       Ok(res)
+        Ok(res)
     }
 
     fn get(&mut self, pos: usize) -> Result<u8> {
-       if pos >= self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       Ok(self.buffer[pos])
+        Ok(self.buffer[pos])
     }
 
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
-       if start + len > self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       Ok(&self.buffer[start..start + len])
+        Ok(&self.buffer[start..start + len as usize])
     }
 
     fn write(&mut self, val: u8) -> Result<()> {
-       self.buffer.push(val);
-       self.pos += 1;
+        self.buffer.push(val);
+        self.pos += 1;
 
-       Ok(())
+        Ok(())
     }
 
     fn set(&mut self, pos: usize, val: u8) -> Result<()> {
-       if pos >= self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       self.buffer[pos] = val;
+        self.buffer[pos] = val;
 
-      Ok(())
+        Ok(())
     }
 
     fn pos(&self) -> usize {
-       self.pos
+        self.pos
     }
 
     fn seek(&mut self, pos: usize) -> Result<()> {
-       if pos > self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       self.pos = pos;
+        self.pos = pos;
 
-       Ok(())
+        Ok(())
     }
 
     fn step(&mut self, steps: usize) -> Result<()> {
-       if self.pos + steps > self.buffer.len() {
-          return Err(BufferError::EndOfBuffer);
-       }
-       self.pos += steps;
+        self.pos += steps;
 
-       Ok(())
+        Ok(())
     }
 }
-
 
 pub struct StreamPacketBuffer<'a, T>
 where
@@ -299,20 +244,18 @@ where
     pub pos: usize,
 }
 
-impl<'a, T> StreamPacketBuffer<'a, T> 
+impl<'a, T> StreamPacketBuffer<'a, T>
 where
     T: Read + 'a,
 {
-    /// Creates a new `StreamPacketBuffer` with an optional pre-allocated buffer size.
     pub fn new(stream: &'a mut T) -> StreamPacketBuffer<'_, T> {
         StreamPacketBuffer {
-           stream: stream,
-           buffer: Vec::with_capacity(512),
-           pos: 0,
+            stream: stream,
+            buffer: Vec::new(),
+            pos: 0,
         }
     }
 }
-
 
 impl<'a, T> PacketBuffer for StreamPacketBuffer<'a, T>
 where
@@ -322,50 +265,53 @@ where
         None
     }
 
-    fn save_label(&mut self, _:&str, _:usize) {
-       unimplemented!();
+    fn save_label(&mut self, _: &str, _: usize) {
+        unimplemented!();
     }
 
     fn read(&mut self) -> Result<u8> {
-       if self.pos >= self.buffer.len() {
-          let mut temp_buffer = [0; 1];
-          self.stream.read(&mut temp_buffer)?;
-          self.buffer.push(temp_buffer[0]);
-       }
-       let res = self.buffer[self.pos];
-       self.pos += 1;
+        while self.pos >= self.buffer.len() {
+            let mut local_buffer = [0; 1];
+            self.stream.read(&mut local_buffer)?;
+            self.buffer.push(local_buffer[0]);
+        }
 
-       Ok(res)
+        let res = self.buffer[self.pos];
+        self.pos += 1;
+
+        Ok(res)
     }
 
     fn get(&mut self, pos: usize) -> Result<u8> {
-       while pos >= self.buffer.len() {
-          let mut temp_buffer = [0; 1];
-          self.stream.read(&mut temp_buffer)?;
-          self.buffer.push(temp_buffer[0]);
-       }
-       Ok(self.buffer[pos])
+        while pos >= self.buffer.len() {
+            let mut local_buffer = [0; 1];
+            self.stream.read(&mut local_buffer)?;
+            self.buffer.push(local_buffer[0]);
+        }
+
+        Ok(self.buffer[pos])
     }
 
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
-      while start + len > self.buffer.len() {
-          let mut temp_buffer = vec![0; len.min(512)];
-          let bytes_read = self.stream.read(&mut temp_buffer)?;
-          self.buffer.extend_from_slice(&temp_buffer[..bytes_read]);
-      }
-      Ok(&self.buffer[start..start + len])
+        while start + len > self.buffer.len() {
+            let mut local_buffer = [0; 1];
+            self.stream.read(&mut local_buffer)?;
+            self.buffer.push(local_buffer[0]);
+        }
+
+        Ok(&self.buffer[start..start + len as usize])
     }
 
     fn write(&mut self, _: u8) -> Result<()> {
-       unimplemented!();
+        unimplemented!();
     }
 
     fn set(&mut self, _: usize, _: u8) -> Result<()> {
-       unimplemented!();
+        unimplemented!();
     }
 
     fn pos(&self) -> usize {
-       self.pos
+        self.pos
     }
 
     fn seek(&mut self, pos: usize) -> Result<()> {
@@ -377,39 +323,178 @@ where
         self.pos += steps;
         Ok(())
     }
-} 
+}
+
+pub struct BytePacketBuffer {
+    pub buf: [u8; 512],
+    pub pos: usize,
+}
+
+impl BytePacketBuffer {
+    pub fn new() -> BytePacketBuffer {
+        BytePacketBuffer {
+            buf: [0; 512],
+            pos: 0,
+        }
+    }
+}
+
+impl Default for BytePacketBuffer {
+    fn default() -> Self {
+        BytePacketBuffer::new()
+    }
+}
+
+impl PacketBuffer for BytePacketBuffer {
+    fn find_label(&self, _: &str) -> Option<usize> {
+        None
+    }
+
+    fn save_label(&mut self, _: &str, _: usize) {}
+
+    fn read(&mut self) -> Result<u8> {
+        if self.pos >= 512 {
+            return Err(BufferError::EndOfBuffer);
+        }
+        let res = self.buf[self.pos];
+        self.pos += 1;
+
+        Ok(res)
+    }
+
+    fn get(&mut self, pos: usize) -> Result<u8> {
+        if pos >= 512 {
+            return Err(BufferError::EndOfBuffer);
+        }
+        Ok(self.buf[pos])
+    }
+
+    fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
+        if start + len >= 512 {
+            return Err(BufferError::EndOfBuffer);
+        }
+        Ok(&self.buf[start..start + len as usize])
+    }
+
+    fn write(&mut self, val: u8) -> Result<()> {
+        if self.pos >= 512 {
+            return Err(BufferError::EndOfBuffer);
+        }
+        self.buf[self.pos] = val;
+        self.pos += 1;
+        Ok(())
+    }
+
+    fn set(&mut self, pos: usize, val: u8) -> Result<()> {
+        self.buf[pos] = val;
+
+        Ok(())
+    }
+
+    fn pos(&self) -> usize {
+        self.pos
+    }
+
+    fn seek(&mut self, pos: usize) -> Result<()> {
+        self.pos = pos;
+
+        Ok(())
+    }
+
+    fn step(&mut self, steps: usize) -> Result<()> {
+        self.pos += steps;
+
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
-    fn test_read_qname() {
-       // Simulating a buffer with a domain name and compression
-       let mut buffer = VectorPacketBuffer::new();
+    fn test_qname() {
+        let mut buffer = VectorPacketBuffer::new();
 
-       // Write a domain name: "wwww.example.com"
-       buffer.write_qname("www.example.com").unwrap();
-       println!("Buffer after write: {:?}", buffer.data());
+        let instr1 = "a.google.com".to_string();
+        let instr2 = "b.google.com".to_string();
 
-      // Add another pointer that uses a pointer to "example.com"
-      buffer.write_qname("mail.example.com").unwrap();
-      println!("Buffer after write: {:?}", buffer.data());
+        // First write the standard string
+        match buffer.write_qname(&instr1) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
 
-      // Reset position for reading
-      buffer.seek(0).unwrap();
+        // Then we set up a slight variation with relies on a jump back to the data of
+        // the first name
+        let crafted_data = [0x01, b'b' as u8, 0xC0, 0x02];
+        for b in &crafted_data {
+            match buffer.write_u8(*b) {
+                Ok(_) => {}
+                Err(_) => panic!(),
+            }
+        }
 
-      // Case 1: Read full domain name
-      let mut output1 = String::new();
-      buffer.read_qname(&mut output1).unwrap();
-      assert_eq!(output1, "www.example.com");
+        // Reset the buffer position for reading
+        buffer.pos = 0;
 
-      // Case 2: Read the compressed domain
-      let mut output2 = String::new();
-      buffer.read_qname(&mut output2).unwrap();
-      assert_eq!(output2, "mail.example.com");
+        // Read the standard name
+        let mut outstr1 = String::new();
+        match buffer.read_qname(&mut outstr1) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        assert_eq!(instr1, outstr1);
+
+        // Read the name with a jump
+        let mut outstr2 = String::new();
+        match buffer.read_qname(&mut outstr2) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        assert_eq!(instr2, outstr2);
+
+        // Make sure we're now at the end of the buffer
+        assert_eq!(buffer.pos, buffer.buffer.len());
     }
 
-  
+    #[test]
+    fn test_write_qname() {
+        let mut buffer = VectorPacketBuffer::new();
 
+        match buffer.write_qname(&"ns1.google.com".to_string()) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+        match buffer.write_qname(&"ns2.google.com".to_string()) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        assert_eq!(22, buffer.pos());
+
+        match buffer.seek(0) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        let mut str1 = String::new();
+        match buffer.read_qname(&mut str1) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        assert_eq!("ns1.google.com", str1);
+
+        let mut str2 = String::new();
+        match buffer.read_qname(&mut str2) {
+            Ok(_) => {}
+            Err(_) => panic!(),
+        }
+
+        assert_eq!("ns2.google.com", str2);
+    }
 }
