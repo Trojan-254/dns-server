@@ -215,7 +215,7 @@ impl PacketBuffer for VectorPacketBuffer {
         self.label_lookup.get(label).cloned()
     }
 
-    fn write_qname(&mut self, qname: &str) -> Result<(), BufferError> {
+    fn write_qname(&mut self, qname: &str) -> Result<()> {
         // Handle empty QName case.
         if qname.is_empty() {
            self.write_u8(0)?;
