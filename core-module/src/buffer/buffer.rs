@@ -465,38 +465,28 @@ mod tests {
     fn test_write_qname() {
         let mut buffer = VectorPacketBuffer::new();
 
-        match buffer.write_qname(&"ns1.google.com".to_string()) {
-            Ok(_) => {}
-            Err(_) => panic!(),
-        }
-        match buffer.write_qname(&"ns2.google.com".to_string()) {
-            Ok(_) => {}
-            Err(_) => panic!(),
-        }
+        // Write the domain names
+        buffer.write_qname(&"ns1.google.com".to_string()).unwrap();
+        buffer.write_qname(&"ns2.google.com".to_string()).unwrap();
 
+        // Print the buffer contents for debugging
+        println!("Buffer after writing qnames: {:?}", buffer.buffer);
+
+        // Assert buffer position
         assert_eq!(22, buffer.pos());
 
-        match buffer.seek(0) {
-            Ok(_) => {}
-            Err(_) => panic!(),
-        }
+        // Seek back to the beginning
+        buffer.seek(0).unwrap();
 
         let mut str1 = String::new();
-        match buffer.read_qname(&mut str1) {
-            Ok(_) => {}
-            Err(_) => panic!(),
-        }
-
+        buffer.read_qname(&mut str1).unwrap();
         assert_eq!("ns1.google.com", str1);
 
-        let mut str2 = String::new();
-        match buffer.read_qname(&mut str2) {
-            Ok(_) => {}
-            Err(_) => panic!(),
-        }
-
-        assert_eq!("ns2.google.com", str2);
+       let mut str2 = String::new();
+       buffer.read_qname(&mut str2).unwrap();
+       assert_eq!("ns2.google.com", str2);
     }
+
 
     #[test]
     fn test_write_qname_no_jump() {
