@@ -152,8 +152,8 @@ pub trait PacketBuffer {
             // Read the label length.
            let len = self.get(pos)?;
 
-            if is_compression_pointer(len) {
-                pos = handle_compression(pos)?;
+            if self.is_compression_pointer(len) {
+                pos = self.handle_compression(pos)?;
                 jumped = true;
                 continue;
             }
@@ -182,10 +182,10 @@ pub trait PacketBuffer {
         Ok(())
     }
 
-    fn is_compression_pointer(len: u8) -> bool {
+    fn is_compression_pointer(&mut self, len: u8) -> bool {
         (len & 0xC0) > 0
     }
-    fn handle_compression(pos: usize) -> Result<usize> {
+    fn handle_compression(&mut self, pos: usize) -> Result<usize> {
         let offset = (((self.get(pos)? as u16) ^ 0xC0) << 8) | self.get(pos + 1)? as u16;
         let new_pos = offset as usize;
         self.seek(new_pos)?;
