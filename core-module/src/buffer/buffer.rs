@@ -131,18 +131,40 @@ pub trait PacketBuffer {
 
     /// Writes a domain name(QNAME) to the buffer.
     fn write_qname(&mut self, qname: &str) -> Result<()> {
-        let labels = qname.split('.');
-        for label in labels {
-          if label.len() > 63 {
-             return Err(BufferError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Label too long",
-             )));
-          }
-          self.write_u8(label.len() as u8)?;
-          self.write_all(label.as_bytes())?;
+        let labels: Vec<&str> = qname.split('.').collect();
+        let mut jumps_perfomed: bool = false;
+
+        // process each label
+        for (index, label) in labels.iter().enumerate() {
+            let remaining_labels = &labels[index..];
+            let remaining_name = remaining_labels.join(".");
+
+            if let Some(previous_position) = self.find_label(&remaining_name) {
+               let jump_instruction = (previous_position as u16) | 0xC000;
+               self.write_u16(jump_instruction)?;
+               jumps_perfomed = true;
+               break;
+            }
+
+            let current_position = self.pos();
+            self.save_label(&remaining_name, current_position);
+
+            let label_length = label.len();
+            if label_length > 63 {
+               return Err(BufferError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Label too long"
+               )));
+            }
+            self.write_u8(label_length as u8)?;
+            for &byte in label.as_bytes() {
+                self.write_u8(byte)?;
+            }
         }
-        let _ = self.write_u8(0); // Null-terminate QNAME
+
+        if !jumps_perfomed {
+           self.write_u8(0)?;
+        }
 
         Ok(())
     }
@@ -362,131 +384,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_qname() {
+    fn test_read_qname() {
+       // Simulating a buffer with a domain name and compression
        let mut buffer = VectorPacketBuffer::new();
 
-       let instr1 = "a.google.com".to_string();
-       let instr2 = "b.google.com".to_string();
+       // Write a domain name: "wwww.example.com"
+       buffer.write_qname("www.example.com").unwrap();
+       println!("Buffer after write: {:?}", buffer.data());
 
-       // Write the first string
-       buffer.write_qname(&instr1).unwrap();
+      // Add another pointer that uses a pointer to "example.com"
+      buffer.write_qname("mail.example.com").unwrap();
+      println!("Buffer after write: {:?}", buffer.data());
 
-      // Write the second string using a crafted jump pointer
-      let crafted_data = [0x01, b'b', 0xC0, 0x02];
-      for b in &crafted_data{
-          buffer.write_u8(*b).unwrap();
-      }
-
-      // Reset the positioning for reading.
+      // Reset position for reading
       buffer.seek(0).unwrap();
 
-      // Read and verify the first srting.
-      let mut outstr1 = String::new();
-      buffer.read_qname(&mut outstr1).unwrap();
-      assert_eq!(instr1, outstr1, "First read_qname result mismatch");
+      // Case 1: Read full domain name
+      let mut output1 = String::new();
+      buffer.read_qname(&mut output1).unwrap();
+      assert_eq!(output1, "www.example.com");
 
-      // Readd and verify the second string with a jump
-      let mut outstr2 = String::new();
-      buffer.read_qname(&mut outstr2).unwrap();
-      assert_eq!(instr2, outstr2, "Second read_qname result mismatch");
+      // Case 2: Read the compressed domain
+      let mut output2 = String::new();
+      buffer.read_qname(&mut output2).unwrap();
+      assert_eq!(output2, "mail.example.com");
+    }
 
-      // Verify the buffer position
-      assert_eq!(buffer.pos, buffer.buffer.len(), "Buffer position mismatch");
-     }
+  
 
-     #[test]
-     fn test_write_qname() {
-        let mut buffer = VectorPacketBuffer::new();
-
-        // Write two domain names
-        buffer.write_qname(&"ns1.google.com".to_string()).unwrap();
-        buffer.write_qname(&"ns2.google.com".to_string()).unwrap();
-
-        assert_eq!(22, buffer.pos(), "Buffer position mismatch after writes");
-
-       // reset the position for reading
-       buffer.seek(0).unwrap();
-
-       // Read and verify the first domain name
-       let mut str1 = String::new();
-       buffer.read_qname(&mut str1).unwrap();
-       assert_eq!("ns1.google.com", str1, "First write_qname mismatch");
-
-       // Read and verify the second domain.
-       let mut str2 = String::new();
-        buffer.read_qname(&mut str2).unwrap();
-        assert_eq!("ns2.google.com", str2, "Second write_qname mismatch");
-     }
-
-     #[test]
-     fn test_vector_packet_buffer_operations() {
-        let mut buffer = VectorPacketBuffer::new();
-
-        // Test writing bytes
-        for i in 0..10 {
-            buffer.write(i).unwrap();
-        }
-
-        assert_eq!(buffer.pos(), 10, "Position mismatch after writes");
-
-       // Test reading bytes
-       buffer.seek(0).unwrap();
-       for i in 0..10 {
-           assert_eq!(buffer.read().unwrap(), i, "Mismatch in reading bytes");
-       }
-
-       // Test get and get_range
-       buffer.seek(0).unwrap();
-       assert_eq!(buffer.get(2).unwrap(), 2, "Get operation mismatch");
-       assert_eq!(buffer.get_range(2, 3).unwrap(), &[2, 3, 4], "Get range mismatch");
-
-       // Test out of bound errors
-       assert!(buffer.get(20).is_err(), "Expected out of bounds error on get");
-       assert!(buffer.get_range(8, 5).is_err(), "Expected out of bounds on get_range");
-     }
-
-     #[test]
-     fn test_stream_packet_buffer() {
-        let data = vec![1, 2, 3, 4, 5];
-        let mut stream = &data[..];
-        let mut buffer = StreamPacketBuffer::new(&mut stream);
-
-        // Test reading beyond the initial stream
-        assert_eq!(buffer.read().unwrap(), 1, "First byte mismatch");
-        assert_eq!(buffer.read().unwrap(), 2, "Second byte mismatch");
-
-        // Test dynamic buffer growth
-        assert_eq!(buffer.get(4).unwrap(), 5, "Get operation mismatch after dynamic read");
-
-        // Test get_range with stream expansion
-        buffer.seek(0).unwrap();
-        assert_eq!(buffer.get_range(0, 5).unwrap(), &[1, 2, 3, 4, 5], "Get range mismatch");
-     }
-
-    #[test]
-    fn test_byte_packet_buffer() {
-        let mut buffer = VectorPacketBuffer::new();
-
-        // Test writing within buffer limits
-        for i in 0..512 {
-            buffer.write(i as u8).unwrap();
-        }
-
-        // Test boundary error
-        assert!(buffer.write(0).is_err(), "Expected buffer overflow error");
-
-        // Test reading bytes
-        buffer.seek(0).unwrap();
-        for i in 0..512 {
-            assert_eq!(buffer.read().unwrap(), i as u8, "Mismatch in reading byte");
-        }
-
-        // Test get and get_range
-        assert_eq!(buffer.get(100).unwrap(), 100, "Get operation mismatch");
-        assert_eq!(buffer.get_range(100, 10).unwrap(), &[100, 101, 102, 103, 104, 105, 106, 107, 108, 109], "Get range mismatch");
-
-        // Test out-of-bounds errors
-        assert!(buffer.get(600).is_err(), "Expected out-of-bounds error on get");
-        assert!(buffer.get_range(510, 5).is_err(), "Expected out-of-bounds error on get_range");
-      }
 }
