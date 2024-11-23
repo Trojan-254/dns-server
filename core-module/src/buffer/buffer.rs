@@ -2,13 +2,30 @@
 
 use std::collections::BTreeMap;
 use std::io::Read;
+use std::fmt;
 
 use derive_more::{Display, Error, From};
+
+#[derive(Debug)]
+pub enum Error {
+    InvalidCharacterInLabel,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+            Error::InvalidCharacterInLabel => write!(f, "Invalid character in label"),
+         }
+    }
+}
+
+impl std::error::Error for Error {}
 
 #[derive(Debug, Display, From, Error)]
 pub enum BufferError {
     Io(std::io::Error),
     EndOfBuffer,
+    InvalidCharacterInLabel,
 }
 
 type Result<T> = std::result::Result<T, BufferError>;
@@ -88,10 +105,22 @@ pub trait PacketBuffer {
     }
 
     fn write_qname(&mut self, qname: &str) -> Result<()> {
+        // Handle empty QName case.
+        if qname.is_empty() {
+           self.write_u8(0)?;
+           return Ok(())
+        }
+
         let labels = qname.split('.').collect::<Vec<&str>>();
         let mut jumped = false;
 
         for (i, label) in labels.iter().enumerate() {
+            // Validate the label charactres
+            for c in label.chars() {
+               if !c.is_alphanumeric() && c != '-' {
+                  return Err(BufferError::InvalidCharacterInLabel);
+               }
+            }
             let remaining_qname = labels[i..].join(".");
             if let Some(pos) = self.find_label(&remaining_qname) {
                 self.write_u16((pos as u16) | 0xC000)?;
