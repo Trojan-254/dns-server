@@ -215,30 +215,6 @@ impl PacketBuffer for VectorPacketBuffer {
         self.label_lookup.get(label).cloned()
     }
 
-    fn write_qname(&mut self, qname: &str) -> Result<()> {
-        // Handle empty QName case.
-        if qname.is_empty() {
-           self.write_u8(0)?;
-           return Ok(())
-        }
-        let labels = qname.split('.').collect::<Vec<&str>>();
-        for label in labels {
-            if let Some(pos) = self.find_label(label) {
-                // Compress each repeated label
-                self.buffer.push(0xC0); // Pointer byte
-                self.buffer.push((pos & 0xFF) as u8);
-            } else {
-                let label_len = label.len() as u8;
-                self.buffer.push(label_len);
-                self.buffer.extend_from_slice(label.as_bytes());
-
-                self.save_label(label, self.buffer.len() - label.len() - 1);
-            }
-        }
-        self.buffer.push(0);
-        Ok(())
-    }
-
     fn save_label(&mut self, label: &str, pos: usize) {
         self.label_lookup.insert(label.to_string(), pos);
     }
