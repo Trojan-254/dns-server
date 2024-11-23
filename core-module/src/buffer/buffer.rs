@@ -497,4 +497,41 @@ mod tests {
 
         assert_eq!("ns2.google.com", str2);
     }
+
+    #[test]
+    fn test_write_qname_no_jump() {
+        let mut buffer = VectorPacketBuffer::new();
+        buffer.write_qname("example.com").unwrap();
+     
+        let expected = vec![
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', // "example"
+            3, b'c', b'o', b'm',                          // "com"
+            0, 
+        ];
+
+        assert_eq!(buffer.buffer, expected);
+        
+    }
+
+    #[test]
+    fn test_write_qname_with_jump() {
+        let mut buffer = VectorPacketBuffer::new();
+        buffer.write_qname("example.com").unwrap();
+
+        // Save the position for "com"
+        let pos_com = buffer.pos();
+
+        // Write "com" should jump to the position stored for "com"
+        buffer.write_qname("com").unwrap();
+
+        let expected = vec![
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', // "example"
+            3, b'c', b'o', b'm',                          // "com"
+            0,
+            0xC0, 0x08,                                          // end of qname
+        ];
+
+        // Check the data to see if jump worked correctly
+        assert_eq!(buffer.buffer, expected);
+    }
 }
