@@ -524,4 +524,91 @@ mod tests {
         // Check the data to see if jump worked correctly
         assert_eq!(buffer.buffer, expected);
     }
+
+    #[test]
+    fn test_write_qname_empty() {
+        let mut buffer = VectorPacketBuffer::new();
+        
+        // Writing an empty domain name should only produce the null byte (0x00)
+        buffer.write_qname("").unwrap();
+        
+        let expected = vec![0]; // Null byte indicating end of domain name
+        assert_eq!(buffer.buffer, expected);
+    }
+    
+    #[test]
+    fn test_write_qname_single_label() {
+        let mut buffer = VectorPacketBuffer::new();
+        
+        // Writing a single label domain name
+        buffer.write_qname("example").unwrap();
+        
+        let expected = vec![
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e', // "example"
+            0,                                         // End of name
+        ];
+    
+        assert_eq!(buffer.buffer, expected);
+    }
+    
+    #[test]
+    fn test_write_qname_maximum_length_label() {
+        let mut buffer = VectorPacketBuffer::new();
+    
+        // A label with 63 characters (maximum valid label length)
+        let label = "a".repeat(63); // "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        buffer.write_qname(&label).unwrap();
+    
+        let mut expected = vec![63]; // Label length
+        expected.extend(label.as_bytes()); // The label itself
+        expected.push(0); // End of name
+        
+        assert_eq!(buffer.buffer, expected);
+    }
+    
+    #[test]
+    fn test_write_qname_invalid_characters() {
+        let mut buffer = VectorPacketBuffer::new();
+        
+        // Invalid DNS label containing underscores should panic or return an error
+        let result = buffer.write_qname("invalid_label_1.com");
+        assert!(result.is_err(), "Expected error for invalid characters in label");
+    }
+    
+    #[test]
+    fn test_write_qname_multiple_repeated_labels_with_jump() {
+        let mut buffer = VectorPacketBuffer::new();
+    
+        // Write the same label multiple times and expect compression
+        buffer.write_qname("example.com").unwrap();
+        buffer.write_qname("com").unwrap();  // This should jump to the previously written "com"
+    
+        let expected = vec![
+            7, b'e', b'x', b'a', b'm', b'p', b'l', b'e',  // "example"
+            3, b'c', b'o', b'm',                         // "com"
+            0,                                          // End of name
+            0xC0, 0x08,                                  // Compression pointer for "com"
+        ];
+    
+        assert_eq!(buffer.buffer, expected);
+    }
+    
+    #[test]
+    fn test_write_qname_long_name_with_compression() {
+        let mut buffer = VectorPacketBuffer::new();
+    
+        // Write a longer domain name and expect compression for repeated labels
+        buffer.write_qname("a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.com").unwrap();
+        buffer.write_qname("com").unwrap();  // This should jump to the previously written "com"
+    
+        let expected = vec![
+            1, b'a', 1, b'b', 1, b'c', 1, b'd', 1, b'e', 1, b'f', 1, b'g', 1, b'h', 
+            1, b'i', 1, b'j', 1, b'k', 1, b'l', 1, b'm', 1, b'n', 1, b'o', 1, b'p', 
+            1, b'q', 1, b'r', 1, b's', 1, b't', 1, b'u', 1, b'v', 1, b'w', 1, b'x',
+            1, b'y', 1, b'z', 3, b'c', b'o', b'm', 0,              // Full name and end
+            0xC0, 0x08,                                            // Compression pointer for "com"
+        ];
+    
+        assert_eq!(buffer.buffer, expected);
+    }
 }
