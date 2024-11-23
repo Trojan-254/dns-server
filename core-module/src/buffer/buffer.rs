@@ -21,11 +21,36 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+#[derive(Debug)]
+pub struct InvalidUtf8;
+
+impl fmt::Display for InvalidUtf8 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Encountered invalid UTF-8 data")
+    }
+}
+
+impl std::error::Error for InvalidUtf8 {}
+
+#[derive(Debug)]
+pub struct InvalidCompressionPointer;
+
+impl fmt::Display for InvalidCompressionPointer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Invalid compression pointer encountered")
+    }
+}
+
+impl std::error::Error for InvalidCompressionPointer {}
+
+
 #[derive(Debug, Display, From, Error)]
 pub enum BufferError {
     Io(std::io::Error),
     EndOfBuffer,
     InvalidCharacterInLabel,
+    InvalidCompressionPointer,
+    InvalidUtf8,
 }
 
 type Result<T> = std::result::Result<T, BufferError>;
@@ -149,13 +174,16 @@ pub trait PacketBuffer {
         let mut delim = "";
 
         loop {
-            let len = self.get(pos)?;
-
+            let len = self.read()? as usize;
+            
             if self.is_compression_pointer(len) {
                 if !jumped {
                     self.seek(pos + 2)?;
                 }
                 let offset = self.calculate_offset(pos, len);
+                if offset >= self.buffer.len() {
+                    return Err(BufferError::InvalidCompressionPointer);
+                }
                 pos = offset;
                 jumped = true;
                 continue;
@@ -167,7 +195,10 @@ pub trait PacketBuffer {
             }
             outstr.push_str(delim);
             let str_buffer = self.get_range(pos, len as usize)?;
-            outstr.push_str(&String::from_utf8_lossy(str_buffer).to_lowercase());
+            match String::from_utf8(str_buffer.to_vec()) {
+                Ok(s) => outstr.push_str(&s.to_lowercase()),
+                Err(_) => return Err(BufferError::InvalidUtf8),
+            }
 
             delim = ".";
             pos += len as usize;
