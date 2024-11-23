@@ -144,45 +144,35 @@ pub trait PacketBuffer {
 
 
     fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
-        let mut pos = self.pos();
+        let mut pos = self.pos(); // Starting position
         let mut jumped = false;
-
         let mut delimeter = "";
+        
         loop {
             // Read the label length.
-            let len = self.get(pos)?;
+           let len = self.get(pos)?;
 
-            // A two byte sequence, where the two highest bits of the first byte is
-            // set, represents a offset relative to the start of the buffer. We
-            // handle this by jumping to the offset, setting a flag to indicate
-            // that we shouldn't update the shared buffer position once done.
-            if (len & 0xC0) > 0 {
-                // When a jump is performed, we only modify the shared buffer
-                // position once, and avoid making the change later on.
-                if !jumped {
-                    self.seek(pos + 2)?;
-                }
-                let offset = (((len as u16) ^ 0xC0) << 8) | self.get(pos + 1)? as u16;
-                pos = offset as usize;
+            if is_compression_pointer(len) {
+                pos = handle_compression(pos)?;
                 jumped = true;
                 continue;
             }
-
-            pos += 1;
-
-            // Names are terminated by an empty label of length 0
+            // If label length is 0, the name is finished
             if len == 0 {
                 break;
             }
 
+            // Add label to the result string
             outstr.push_str(delimeter);
 
-            let label = self.get_range(pos, len as usize)?;
+            let label = self.get_range(pos + 1, len as usize)?;
             outstr.push_str(&String::from_utf8_lossy(label).to_lowercase());
 
+            //update the delimeter for the next label
             delimeter = ".";
 
-            pos += len as usize;
+            // Move the position forward by the label lenght
+            pos += len as usize + 1;
         }
 
         if !jumped {
@@ -190,6 +180,16 @@ pub trait PacketBuffer {
         }
 
         Ok(())
+    }
+
+    fn is_compression_pointer(len: u8) -> bool {
+        (len & 0xC0) > 0
+    }
+    fn handle_compression(pos: usize) -> Result<usize> {
+        let offset = (((self.get(pos)? as u16) ^ 0xC0) << 8) | self.get(pos + 1)? as u16;
+        let new_pos = offset as usize;
+        self.seek(new_pos)?;
+        Ok(new_pos)
     }
 }
 
