@@ -742,7 +742,7 @@ mod tests {
     fn test_read_qname_non_ascii() {
         let mut buffer = VectorPacketBuffer {
             buffer: vec![
-                4, b'k', b'ü', b'n', b'a', 3, b'c', b'o', b'm', 0
+                4, b'k', b'\xFC', b'n', b'a', 3, b'c', b'o', b'm', 0
             ],
             pos: 0,
             label_lookup: BTreeMap::new(),
