@@ -165,64 +165,6 @@ pub trait PacketBuffer {
         Ok(())
     }
 
-
-
-
-    // fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
-    //     let mut pos = self.pos();
-    //     let mut jumped = false;
-    //     let mut delim = "";
-
-    //     loop {
-    //         let len = self.read()? as usize;
-            
-    //         if self.is_compression_pointer(len) {
-    //             if !jumped {
-    //                 self.seek(pos + 2).map_err(|_| BufferError::EndOfBuffer)?;
-    //             }
-    //             let offset = self.calculate_offset(pos, len)?;
-    //             pos = offset;
-    //             jumped = true;
-    //             continue;
-    //         }
-    //         pos += 1;
-
-    //         if len == 0 {
-    //             break;
-    //         }
-    //         outstr.push_str(delim);
-    //         let str_buffer = self.get_range(pos, len as usize)?;
-    //         let label = String::from_utf8(str_buffer.to_vec()).map_err(|_| BufferError::InvalidUtf8)?;
-    //         outstr.push_str(&label.to_lowercase());
-
-    //         delim = ".";
-    //         pos += len as usize;
-    //     }
-    //     if !jumped {
-    //         self.seek(pos)?;
-    //     }
-        
-    //     Ok(())
-    // }
-
-    
-
-    // fn is_compression_pointer(&mut self, len: u8) -> bool {
-    //     (len & 0xC0) > 0
-    // }
-
-    // fn calculate_offset(&mut self, pos: usize, len: u8) -> Result<usize> {
-    //     if pos + 1 >= self.buffer.len() {
-    //         return Err(BufferError::InvalidCompressionPointer);
-    //     }
-    //     let b2 = self.get(pos + 1).map_err(|_| BufferError::InvalidCompressionPointer)? as u16;
-    //     let offset = (((len as u16) ^ 0xC0) << 8) | b2;
-    //     if offset as usize >= self.buffer.len() {
-    //         return Err(BufferError::InvalidCompressionPointer);
-    //     }
-    //     offset as usize
-    // }
-
     fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
         let mut pos = self.pos();
         let mut jumped = false;
@@ -621,7 +563,7 @@ mod tests {
         buffer.write_qname("example.com").unwrap();
 
         // Save the position for "com"
-        let pos_com = buffer.pos();
+        let _pos_com = buffer.pos();
 
         // Write "com" should jump to the position stored for "com"
         buffer.write_qname("com").unwrap();
@@ -704,25 +646,6 @@ mod tests {
     
         assert_eq!(buffer.buffer, expected);
     }
-    
-    // #[test]
-    // fn test_write_qname_long_name_with_compression() {
-    //     let mut buffer = VectorPacketBuffer::new();
-    
-    //     // Write a longer domain name and expect compression for repeated labels
-    //     buffer.write_qname("a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.q.r.s.t.u.v.w.x.y.z.com").unwrap();
-    //     buffer.write_qname("com").unwrap();  // This should jump to the previously written "com"
-    
-    //     let expected = vec![
-    //         1, b'a', 1, b'b', 1, b'c', 1, b'd', 1, b'e', 1, b'f', 1, b'g', 1, b'h', 
-    //         1, b'i', 1, b'j', 1, b'k', 1, b'l', 1, b'm', 1, b'n', 1, b'o', 1, b'p', 
-    //         1, b'q', 1, b'r', 1, b's', 1, b't', 1, b'u', 1, b'v', 1, b'w', 1, b'x',
-    //         1, b'y', 1, b'z', 3, b'c', b'o', b'm', 0,              // Full name and end
-    //         0xC0, 0x08,                                            // Compression pointer for "com"
-    //     ];
-    
-    //     assert_eq!(buffer.buffer, expected);
-    // }
 
     // Test case 1: Basic case without compression
     #[test]
