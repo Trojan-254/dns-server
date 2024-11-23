@@ -144,52 +144,49 @@ pub trait PacketBuffer {
 
 
     fn read_qname(&mut self, outstr: &mut String) -> Result<()> {
-        let mut pos = self.pos(); // Starting position
+        let mut pos = self.pos();
         let mut jumped = false;
-        let mut delimeter = "";
-        
+        let mut delim = "";
+
         loop {
-            // Read the label length.
-           let len = self.get(pos)?;
+            let len = self.get(pos)?;
 
             if self.is_compression_pointer(len) {
-                pos = self.handle_compression(pos)?;
+                if !jumped {
+                    self.seek(pos + 2)?;
+                }
+                let offset = self.calculate_offset(pos, len);
+                pos = offset;
                 jumped = true;
                 continue;
             }
-            // If label length is 0, the name is finished
+            pos += 1;
+
             if len == 0 {
                 break;
             }
+            outstr.push_str(delim);
+            let str_buffer = self.get_range(pos, len as usize)?;
+            outstr.push_str(&String::from_utf8_lossy(str_buffer).to_lowercase());
 
-            // Add label to the result string
-            outstr.push_str(delimeter);
-
-            let label = self.get_range(pos + 1, len as usize)?;
-            outstr.push_str(&String::from_utf8_lossy(label).to_lowercase());
-
-            //update the delimeter for the next label
-            delimeter = ".";
-
-            // Move the position forward by the label lenght
-            pos += len as usize + 1;
+            delim = ".";
+            pos += len as usize;
         }
-
         if !jumped {
             self.seek(pos)?;
         }
-
+        
         Ok(())
     }
 
-    fn is_compression_pointer(&mut self, len: u8) -> bool {
+    fn is_compression_pointer(&self, len: u8) -> bool {
         (len & 0xC0) > 0
     }
-    fn handle_compression(&mut self, pos: usize) -> Result<usize> {
-        let offset = (((self.get(pos)? as u16) ^ 0xC0) << 8) | self.get(pos + 1)? as u16;
-        let new_pos = offset as usize;
-        self.seek(new_pos)?;
-        Ok(new_pos)
+
+    fn calculate_offset(&self, pos: usize, len: u8) -> usize {
+        let b2 = self.get(pos + 1)? as u16;
+        let offset = (((len as u16) ^ 0xC0) << 8) | b2;
+        offset as usize
     }
 }
 
