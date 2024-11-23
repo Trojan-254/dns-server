@@ -178,12 +178,9 @@ pub trait PacketBuffer {
             
             if self.is_compression_pointer(len) {
                 if !jumped {
-                    self.seek(pos + 2)?;
+                    self.seek(pos + 2).map_err(|_| BufferError::EndOfBuffer)?;
                 }
-                let offset = self.calculate_offset(pos, len);
-                if offset >= self.buffer.len() {
-                    return Err(BufferError::InvalidCompressionPointer);
-                }
+                let offset = self.calculate_offset(pos, len)?;
                 pos = offset;
                 jumped = true;
                 continue;
@@ -195,10 +192,8 @@ pub trait PacketBuffer {
             }
             outstr.push_str(delim);
             let str_buffer = self.get_range(pos, len as usize)?;
-            match String::from_utf8(str_buffer.to_vec()) {
-                Ok(s) => outstr.push_str(&s.to_lowercase()),
-                Err(_) => return Err(BufferError::InvalidUtf8),
-            }
+            let label = String::from_utf8(str_buffer.to_vec()).map_err(|_| BufferError::InvalidUtf8)?;
+            outstr.push_str(&label.to_lowercase());
 
             delim = ".";
             pos += len as usize;
@@ -214,12 +209,15 @@ pub trait PacketBuffer {
         (len & 0xC0) > 0
     }
 
-    fn calculate_offset(&mut self, pos: usize, len: u8) -> usize {
-        let b2 = match self.get(pos + 1){
-            Ok(val) => val as u16,
-            Err(_) => return usize::MAX,
-        };
+    fn calculate_offset(&mut self, pos: usize, len: u8) -> Result<usize> {
+        if pos + 1 >= self.buffer.len() {
+            return Err(BufferError::InvalidCompressionPointer);
+        }
+        let b2 = self.get(pos + 1).map_err(|_| BufferError::InvalidCompressionPointer)? as u16;
         let offset = (((len as u16) ^ 0xC0) << 8) | b2;
+        if offset as usize >= self.buffer.len() {
+            return Err(BufferError::InvalidCompressionPointer);
+        }
         offset as usize
     }
 }
@@ -262,6 +260,9 @@ impl PacketBuffer for VectorPacketBuffer {
     }
 
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
+        if start + length > self.buffer.len() {
+            return Err(BufferError::EndOfBuffer)
+        }
         Ok(&self.buffer[start..start + len as usize])
     }
 
