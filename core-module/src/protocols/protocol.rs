@@ -548,7 +548,7 @@ impl DnsRecord {
             DnsRecord::SOA { .. } => QueryType::SOA,
             DnsRecord::TXT { .. } => QueryType::TXT,
             DnsRecord::OPT { .. } => QueryType::OPT,
-            DnsRecord::UNKNOWN { qtype, .. } => qtype, // Directly return the unknown query type
+            DnsRecord::UNKNOWN { qtype, .. } => QueryType::UNKNOWN(qtype), // Directly return the unknown query type
         }
     }
 
