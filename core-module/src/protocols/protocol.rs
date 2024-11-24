@@ -535,7 +535,55 @@ impl DnsRecord {
     }
 
     Ok(buffer.pos() - start_pos)
-}
+    }
+
+    pub fn get_querytype(&self) -> QueryType {
+        match *self {
+            DnsRecord::A { .. } => QueryType::A,
+            DnsRecord::AAAA { .. } => QueryType::AAAA,
+            DnsRecord::NS { .. } => QueryType::NS,
+            DnsRecord::CNAME { .. } => QueryType::CNAME,
+            DnsRecord::SRV { .. } => QueryType::SRV,
+            DnsRecord::MX { .. } => QueryType::MX,
+            DnsRecord::SOA { .. } => QueryType::SOA,
+            DnsRecord::TXT { .. } => QueryType::TXT,
+            DnsRecord::OPT { .. } => QueryType::OPT,
+            DnsRecord::UNKNOWN { qtype, .. } => qtype, // Directly return the unknown query type
+        }
+    }
+
+    pub fn get_domain(&self) -> Option<String> {
+        match *self {
+            DnsRecord::A { ref domain, .. }
+            | DnsRecord::AAAA { ref domain, .. }
+            | DnsRecord::NS { ref domain, .. }
+            | DnsRecord::CNAME { ref domain, .. }
+            | DnsRecord::SRV { ref domain, .. }
+            | DnsRecord::MX { ref domain, .. }
+            | DnsRecord::UNKNOWN { ref domain, .. }
+            | DnsRecord::SOA { ref domain, .. }
+            | DnsRecord::TXT { ref domain, .. } => Some(domain.clone()),
+            DnsRecord::OPT { .. } => None,
+        }
+    }
+
+    pub fn get_ttl(&self) -> u32 {
+        match *self {
+            DnsRecord::A { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::AAAA { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::NS { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::CNAME { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::SRV { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::MX { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::UNKNOWN { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::SOA { ttl: TransientTtl(ttl), .. }
+            | DnsRecord::TXT { ttl: TransientTtl(ttl), .. } => ttl,
+            DnsRecord::OPT { .. } => 0,
+        }
+    }
+
+
+
 
 
     
