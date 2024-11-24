@@ -394,6 +394,151 @@ impl DnsRecord {
             data,
         })
     }
+
+
+    pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<usize> {
+    let start_pos = buffer.pos();
+
+    // Helper function to write common parts of the record (qname, query type, class, ttl)
+    fn write_common<T: PacketBuffer>(
+        buffer: &mut T,
+        domain: &str,
+        query_type: QueryType,
+        ttl: u32,
+    ) -> Result<()> {
+        buffer.write_qname(domain)?;
+        buffer.write_u16(query_type.to_num())?;
+        buffer.write_u16(1)?; // Record class (IN)
+        buffer.write_u32(ttl)?;
+        Ok(())
+    }
+
+    match *self {
+        DnsRecord::A {
+            ref domain,
+            ref addr,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::A, ttl)?;
+            buffer.write_u16(4)?;
+            let octets = addr.octets();
+            for &octet in &octets {
+                buffer.write_u8(octet)?;
+            }
+        }
+        DnsRecord::AAAA {
+            ref domain,
+            ref addr,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::AAAA, ttl)?;
+            buffer.write_u16(16)?;
+            for &octet in &addr.segments() {
+                buffer.write_u16(octet)?;
+            }
+        }
+        DnsRecord::NS {
+            ref domain,
+            ref host,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::NS, ttl)?;
+            let pos = buffer.pos();
+            buffer.write_u16(0)?;
+            buffer.write_qname(host)?;
+            let size = buffer.pos() - (pos + 2);
+            buffer.set_u16(pos, size as u16)?;
+        }
+        DnsRecord::CNAME {
+            ref domain,
+            ref host,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::CNAME, ttl)?;
+            let pos = buffer.pos();
+            buffer.write_u16(0)?;
+            buffer.write_qname(host)?;
+            let size = buffer.pos() - (pos + 2);
+            buffer.set_u16(pos, size as u16)?;
+        }
+        DnsRecord::SRV {
+            ref domain,
+            priority,
+            weight,
+            port,
+            ref host,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::SRV, ttl)?;
+            let pos = buffer.pos();
+            buffer.write_u16(0)?;
+            buffer.write_u16(priority)?;
+            buffer.write_u16(weight)?;
+            buffer.write_u16(port)?;
+            buffer.write_qname(host)?;
+            let size = buffer.pos() - (pos + 2);
+            buffer.set_u16(pos, size as u16)?;
+        }
+        DnsRecord::MX {
+            ref domain,
+            priority,
+            ref host,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::MX, ttl)?;
+            let pos = buffer.pos();
+            buffer.write_u16(0)?;
+            buffer.write_u16(priority)?;
+            buffer.write_qname(host)?;
+            let size = buffer.pos() - (pos + 2);
+            buffer.set_u16(pos, size as u16)?;
+        }
+        DnsRecord::SOA {
+            ref domain,
+            ref m_name,
+            ref r_name,
+            serial,
+            refresh,
+            retry,
+            expire,
+            minimum,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::SOA, ttl)?;
+            let pos = buffer.pos();
+            buffer.write_u16(0)?;
+            buffer.write_qname(m_name)?;
+            buffer.write_qname(r_name)?;
+            buffer.write_u32(serial)?;
+            buffer.write_u32(refresh)?;
+            buffer.write_u32(retry)?;
+            buffer.write_u32(expire)?;
+            buffer.write_u32(minimum)?;
+            let size = buffer.pos() - (pos + 2);
+            buffer.set_u16(pos, size as u16)?;
+        }
+        DnsRecord::TXT {
+            ref domain,
+            ref data,
+            ttl: TransientTtl(ttl),
+        } => {
+            write_common(buffer, domain, QueryType::TXT, ttl)?;
+            buffer.write_u16(data.len() as u16)?;
+            for &b in data.as_bytes() {
+                buffer.write_u8(b)?;
+            }
+        }
+        DnsRecord::OPT { .. } => {} // OPT record doesn't need writing
+        DnsRecord::UNKNOWN { .. } => {
+            println!("Skipping record: {:?}", self);
+        }
+    }
+
+    Ok(buffer.pos() - start_pos)
+}
+
+
+    
 }
 
 
