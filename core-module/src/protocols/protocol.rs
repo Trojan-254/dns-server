@@ -630,3 +630,115 @@ impl ResultCode {
         }
     }
 }
+
+
+/// Representation of a DNS header
+#[derive(Clone, Debug, Default)]
+pub struct DnsHeader {
+    pub id: u16, // Transaction ID
+
+    // Flags
+    pub recursion_desired: bool,    // Recursion desired
+    pub truncated_message: bool,    // Message truncated
+    pub authoritative_answer: bool, // Authoritative answer
+    pub opcode: u8,                 // Opcode (4 bits)
+    pub response: bool,             // Query/Response flag
+
+    pub response_code: ResultCode,  // Response code (4 bits)
+    pub checking_disabled: bool,    // Checking disabled
+    pub authed_data: bool,          // Authenticated data
+    pub z: bool,                    // Reserved (must be 0)
+    pub recursion_available: bool,  // Recursion available
+
+    // Record counts
+    pub questions: u16,
+    pub answers: u16,
+    pub authoritative_entries: u16,
+    pub resource_entries: u16,
+}
+
+impl DnsHeader {
+    /// Writes the DNS header to the provided buffer.
+    pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+        // Write transaction ID
+        buffer.write_u16(self.id)?;
+
+        // Construct the flag bytes
+        let flags1 = (self.recursion_desired as u8)
+            | ((self.truncated_message as u8) << 1)
+            | ((self.authoritative_answer as u8) << 2)
+            | (self.opcode << 3)
+            | ((self.response as u8) << 7);
+        let flags2 = (self.response_code.clone() as u8)
+            | ((self.checking_disabled as u8) << 4)
+            | ((self.authed_data as u8) << 5)
+            | ((self.z as u8) << 6)
+            | ((self.recursion_available as u8) << 7);
+
+        // Write flags
+        buffer.write_u8(flags1)?;
+        buffer.write_u8(flags2)?;
+
+        // Write record counts
+        buffer.write_u16(self.questions)?;
+        buffer.write_u16(self.answers)?;
+        buffer.write_u16(self.authoritative_entries)?;
+        buffer.write_u16(self.resource_entries)?;
+
+        Ok(())
+    }
+
+    /// Reads the DNS header from the provided buffer
+    pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
+        self.id = buffer.read_u16()?;
+
+        let flags = buffer.read_u16()?;
+        let flags1 = (flags >> 8) as u8;
+        let flags2 = (flags & 0xFF) as u8;
+
+        self.recursion_desired = (flags1 & 0x01) != 0;
+        self.truncated_message = (flags1 & 0x02) != 0;
+        self.authoritative_answer = (flags1 & 0x04) != 0;
+        self.opcode = (flags1 >> 3) & 0x0F;
+        self.response = (flags1 & 0x80) != 0;
+
+        self.response_code = ResultCode::from_num(flags2 & 0x0F);
+        self.checking_disabled = (flags2 & 0x10) != 0;
+        self.authed_data = (flags2 & 0x20) != 0;
+        self.z = (flags2 & 0x40) != 0;
+        self.recursion_available = (flags2 & 0x80) != 0;
+
+        self.questions = buffer.read_u16()?;
+        self.answers = buffer.read_u16()?;
+        self.authoritative_entries = buffer.read_u16()?;
+        self.resource_entries = buffer.read_u16()?;
+
+        Ok(())
+    }
+
+    /// Returns the binary length of the DNS header
+    pub fn binary_len(&self) -> usize {
+        12
+    }
+}
+
+impl fmt::Display for DnsHeader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "DnsHeader:")?;
+        writeln!(f, "\tid: {}", self.id)?;
+        writeln!(f, "\trecursion_desired: {}", self.recursion_desired)?;
+        writeln!(f, "\ttruncated_message: {}", self.truncated_message)?;
+        writeln!(f, "\tauthoritative_answer: {}", self.authoritative_answer)?;
+        writeln!(f, "\topcode: {}", self.opcode)?;
+        writeln!(f, "\tresponse: {}", self.response)?;
+        writeln!(f, "\tresponse_code: {:?}", self.response_code)?;
+        writeln!(f, "\tchecking_disabled: {}", self.checking_disabled)?;
+        writeln!(f, "\tauthed_data: {}", self.authed_data)?;
+        writeln!(f, "\tz: {}", self.z)?;
+        writeln!(f, "\trecursion_available: {}", self.recursion_available)?;
+        writeln!(f, "\tquestions: {}", self.questions)?;
+        writeln!(f, "\tanswers: {}", self.answers)?;
+        writeln!(f, "\tauthoritative_entries: {}", self.authoritative_entries)?;
+        writeln!(f, "\tresource_entries: {}", self.resource_entries)
+    }
+}
