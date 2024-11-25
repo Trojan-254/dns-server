@@ -629,6 +629,9 @@ impl ResultCode {
             ResultCode::UNKNOWN(num) => num,
         }
     }
+    pub fn to_u8(&self) -> u8 {
+        *self as u8
+    }
 }
 
 
@@ -669,7 +672,7 @@ impl DnsHeader {
             | ((self.authoritative_answer as u8) << 2)
             | (self.opcode << 3)
             | ((self.response as u8) << 7);
-        let flags2 = (self.response_code.clone() as u8)
+        let flags2 = self.response_code.to_u8()
             | ((self.checking_disabled as u8) << 4)
             | ((self.authed_data as u8) << 5)
             | ((self.z as u8) << 6)
