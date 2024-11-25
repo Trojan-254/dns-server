@@ -585,6 +585,7 @@ impl DnsRecord {
 
 
 /// The result code for a DNS query, as described in the specification
+#[repr(u8)] // Specifies the enum's underlying type
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ResultCode {
     NOERROR = 0,
