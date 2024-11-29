@@ -835,7 +835,7 @@ impl DnsPacket {
         for _ in 0..packet.header.questions {
             let mut question = DnsQuestion::new("".to_string(), QueryType::UNKNOWN(0));
             question.read(buffer)?;
-            packet.question.push(question);
+            packet.questions.push(question);
         }
 
         // Read answers, authorities, and additional resources
