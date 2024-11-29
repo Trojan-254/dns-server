@@ -697,9 +697,9 @@ impl DnsHeader{
     pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
         self.id = buffer.read_u16()?;
 
-        // Read the flags as two bytes.
-        let flags1 = buffer.read_u8()?;
-        let flags2 = buffer.read_u8()?;
+        let flags = buffer.read_u16()?;
+        let flags1 = (flags >> 8) as u8;
+        let flags2 = (flags & 0xFF) as u8;
 
         self.recursion_desired = (flags1 & (1 << 0)) > 0;
         self.truncated_message = (flags1 & (1 << 1)) > 0;
@@ -733,7 +733,7 @@ impl fmt::Display for DnsHeader {
         writeln!(f, "\tauthoritative_answer: {}", self.authoritative_answer)?;
         writeln!(f, "\topcode: {}", self.opcode)?;
         writeln!(f, "\tresponse: {}", self.response)?;
-        writeln!(f, "\tresponse_code: {:?}", self.response_code)?;
+        writeln!(f, "\trescode: {:?}", self.rescode)?;
         writeln!(f, "\tchecking_disabled: {}", self.checking_disabled)?;
         writeln!(f, "\tauthed_data: {}", self.authed_data)?;
         writeln!(f, "\tz: {}", self.z)?;
