@@ -781,7 +781,7 @@ impl DnsQuestion {
 }
 
 impl fmt::Display for DnsQuestion {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "DnsQuestion:")?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\trecord type: {:?}", self.qtype)?;
@@ -813,7 +813,7 @@ impl DnsPacket {
 
     /// Reads a dns packet from the packet buffer
     pub fn from_buffer<T: PacketBuffer>(buffer: &mut T) -> Result<Self> {
-        let mut packet = Packet::new();
+        let mut packet = Self::new();
 
         // Read the dns header
         packet.header.read(buffer)?;
