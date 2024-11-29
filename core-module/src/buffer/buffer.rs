@@ -266,6 +266,12 @@ impl PacketBuffer for VectorPacketBuffer {
         Ok(())
     }
 
+    fn write_u8(&mut self, val: u8) -> Result<()> {
+        self.write(val)?;
+
+        Ok(())
+    }
+
     fn set(&mut self, pos: usize, val: u8) -> Result<()> {
         self.buffer[pos] = val;
 

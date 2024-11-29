@@ -641,7 +641,7 @@ pub struct DnsHeader {
     pub opcode: u8,                 // Opcode (4 bits)
     pub response: bool,             // Query/Response flag
 
-    pub response_code: ResultCode,  // Response code (4 bits)
+    pub rescode: ResultCode,  // Response code (4 bits)
     pub checking_disabled: bool,    // Checking disabled
     pub authed_data: bool,          // Authenticated data
     pub z: bool,                    // Reserved (must be 0)
