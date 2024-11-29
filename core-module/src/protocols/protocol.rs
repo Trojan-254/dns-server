@@ -772,7 +772,7 @@ impl DnsQuestion {
     }
 
     /// Reads the dns question from the packet buffer
-    pub fn read<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+    pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
         buffer.read_qname(&mut self.name)?;
         self.qtype = QueryType::from_num(buffer.read_u16()?);
         buffer.read_u16()?;
@@ -781,8 +781,8 @@ impl DnsQuestion {
 }
 
 impl fmt::Display for DnsQuestion {
-    fn fmt(&self, &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f"DnsQuestion:")?;
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "DnsQuestion:")?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\trecord type: {:?}", self.qtype)?;
 
@@ -805,16 +805,11 @@ pub struct DnsPacket {
 }
 
 impl DnsPacket {
-    /// Creates a new dns packet.
-    pub fn new() {
-        DnsPacket {
-            header: DnsHeader::new(),
-            questions: Vec::new(),
-            answers: Vec::new(),
-            authorities: Vec::new(),
-            resources: Vec::new(),
-        }
+    /// Creates a new, empty DNS packet
+    pub fn new() -> Self {
+        Self::default()
     }
+    
 
     /// Reads a dns packet from the packet buffer
     pub fn from_buffer<T: PacketBuffer>(buffer: &mut T) -> Result<Self> {
@@ -857,7 +852,7 @@ impl DnsPacket {
         println!("{}", self.header);
 
         fn print_section<T: std::fmt::Debug>(label: &str, records: &[T]) {
-            println!("", label);
+            println!("{}:", label);
             for record in records {
                 println!("\t{:?}", record);
             }
