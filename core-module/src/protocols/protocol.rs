@@ -744,3 +744,182 @@ impl fmt::Display for DnsHeader {
         writeln!(f, "\tresource_entries: {}", self.resource_entries)
     }
 }
+
+
+
+use super::*; // Assuming DnsHeader, ResultCode, and necessary imports are available
+use std::io::{Cursor, Write}; // For working with in-memory buffers
+use rand::Rng; // For randomized tests
+use std::assert_eq;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Test Case 1: Test Default Values
+    #[test]
+    fn test_default_values() {
+        let default_header = DnsHeader::default();
+        assert_eq!(default_header.id, 0);
+        assert_eq!(default_header.recursion_desired, false);
+        assert_eq!(default_header.truncated_message, false);
+        assert_eq!(default_header.authoritative_answer, false);
+        assert_eq!(default_header.opcode, 0);
+        assert_eq!(default_header.response, false);
+        assert_eq!(default_header.rescode, ResultCode::NOERROR);
+        assert_eq!(default_header.checking_disabled, false);
+        assert_eq!(default_header.authed_data, false);
+        assert_eq!(default_header.z, false);
+        assert_eq!(default_header.recursion_available, false);
+        assert_eq!(default_header.questions, 0);
+        assert_eq!(default_header.answers, 0);
+        assert_eq!(default_header.authoritative_entries, 0);
+        assert_eq!(default_header.resource_entries, 0);
+    }
+
+    // Test Case 2: Test Serialization and Deserialization Consistency
+    #[test]
+    fn test_serialize_deserialize_consistency() {
+        let original_header = DnsHeader {
+            id: 1234,
+            recursion_desired: true,
+            truncated_message: false,
+            authoritative_answer: true,
+            opcode: 1,
+            response: true,
+            rescode: ResultCode::SERVFAIL,
+            checking_disabled: true,
+            authed_data: true,
+            z: false,
+            recursion_available: true,
+            questions: 10,
+            answers: 5,
+            authoritative_entries: 2,
+            resource_entries: 4,
+        };
+
+        // Serialize to buffer
+        let mut buffer = Vec::new();
+        original_header.write(&mut buffer).unwrap();
+
+        // Deserialize from buffer
+        let mut deserialized_header = DnsHeader::default();
+        deserialized_header.read(&mut Cursor::new(&buffer)).unwrap();
+
+        // Verify that the original and deserialized headers match
+        assert_eq!(original_header, deserialized_header);
+    }
+
+    // Test Case 3: Test Boundary Conditions
+    #[test]
+    fn test_boundary_conditions() {
+        let boundary_header = DnsHeader {
+            id: 65535,  // Max value for u16
+            recursion_desired: true,
+            truncated_message: true,
+            authoritative_answer: true,
+            opcode: 15, // Max valid opcode
+            response: true,
+            rescode: ResultCode::REFUSED,
+            checking_disabled: true,
+            authed_data: true,
+            z: true,  // This is reserved, but testing behavior
+            recursion_available: true,
+            questions: 0,  // Test zero value
+            answers: 0,
+            authoritative_entries: 0,
+            resource_entries: 0,
+        };
+
+        // Serialize to buffer
+        let mut buffer = Vec::new();
+        boundary_header.write(&mut buffer).unwrap();
+
+        // Deserialize from buffer
+        let mut deserialized_header = DnsHeader::default();
+        deserialized_header.read(&mut Cursor::new(&buffer)).unwrap();
+
+        // Verify that the boundary values are handled correctly
+        assert_eq!(boundary_header, deserialized_header);
+    }
+
+    // Test Case 4: Test Invalid Data (Corrupt Header)
+    #[test]
+    fn test_invalid_data() {
+        // Corrupt the data by providing an invalid length for u16 (e.g., an extra byte)
+        let invalid_data = vec![0, 0, 0, 0, 0, 0, 0, 0]; // This is less than the expected 12 bytes
+
+        let mut deserialized_header = DnsHeader::default();
+        let result = deserialized_header.read(&mut Cursor::new(&invalid_data));
+
+        assert!(result.is_err(), "Expected an error when deserializing corrupt data");
+    }
+
+    // Test Case 5: Test Randomized Headers
+    #[test]
+    fn test_random_headers() {
+        let mut rng = rand::thread_rng();
+        for _ in 0..1000 { // Test 1000 random headers
+            let random_header = DnsHeader {
+                id: rng.gen_range(0..=65535),
+                recursion_desired: rng.gen(),
+                truncated_message: rng.gen(),
+                authoritative_answer: rng.gen(),
+                opcode: rng.gen_range(0..=15),
+                response: rng.gen(),
+                rescode: ResultCode::from_num(rng.gen_range(0..=5)),
+                checking_disabled: rng.gen(),
+                authed_data: rng.gen(),
+                z: rng.gen(),
+                recursion_available: rng.gen(),
+                questions: rng.gen_range(0..=10),
+                answers: rng.gen_range(0..=10),
+                authoritative_entries: rng.gen_range(0..=10),
+                resource_entries: rng.gen_range(0..=10),
+            };
+
+            // Serialize to buffer
+            let mut buffer = Vec::new();
+            random_header.write(&mut buffer).unwrap();
+
+            // Deserialize from buffer
+            let mut deserialized_header = DnsHeader::default();
+            deserialized_header.read(&mut Cursor::new(&buffer)).unwrap();
+
+            // Verify that the original and deserialized headers match
+            assert_eq!(random_header, deserialized_header);
+        }
+    }
+
+    // Test Case 6: Test Deserialization with Incorrect Opcode
+    #[test]
+    fn test_invalid_opcode() {
+        let mut buffer = Vec::new();
+
+        // Write a valid header with an invalid opcode (e.g., opcode > 15)
+        let header_with_invalid_opcode = DnsHeader {
+            id: 1,
+            recursion_desired: true,
+            truncated_message: false,
+            authoritative_answer: true,
+            opcode: 16, // Invalid opcode value (greater than 15)
+            response: true,
+            rescode: ResultCode::NOERROR,
+            checking_disabled: false,
+            authed_data: false,
+            z: false,
+            recursion_available: true,
+            questions: 1,
+            answers: 1,
+            authoritative_entries: 0,
+            resource_entries: 0,
+        };
+
+        header_with_invalid_opcode.write(&mut buffer).unwrap();
+
+        let mut deserialized_header = DnsHeader::default();
+        let result = deserialized_header.read(&mut Cursor::new(&buffer));
+
+        assert!(result.is_err(), "Expected error for invalid opcode value");
+    }
+}
