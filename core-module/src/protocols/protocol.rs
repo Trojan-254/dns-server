@@ -654,8 +654,7 @@ pub struct DnsHeader {
     pub resource_entries: u16,
 }
 
-impl DnsHeader {
-
+impl DnsHeader{
     pub fn new() -> DnsHeader {
         /// creates a new dns header with default values
         pub fn new() -> Self {
@@ -721,7 +720,9 @@ impl DnsHeader {
 
             // Return the constant header size
             Ok(())
-      }
+        }
+    }
+
 }
 
 impl fmt::Display for DnsHeader {
