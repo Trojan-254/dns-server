@@ -585,8 +585,8 @@ impl DnsRecord {
 
 
 /// The result code for a DNS query, as described in the specification
-#[repr(u8)] // Specifies the enum's underlying type
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(u8)] // Specifies the enum's underlying type
 pub enum ResultCode {
     NOERROR = 0,
     FORMERR = 1,
@@ -594,7 +594,6 @@ pub enum ResultCode {
     NXDOMAIN = 3,
     NOTIMP = 4,
     REFUSED = 5,
-    UNKNOWN(u8), // Handle unsupported result codes
 }
 
 impl Default for ResultCode {
@@ -604,32 +603,30 @@ impl Default for ResultCode {
 }
 
 impl ResultCode {
-    /// Create a `ResultCode` from a numeric value
     pub fn from_num(num: u8) -> ResultCode {
         match num {
-            0 => ResultCode::NOERROR,
             1 => ResultCode::FORMERR,
             2 => ResultCode::SERVFAIL,
             3 => ResultCode::NXDOMAIN,
             4 => ResultCode::NOTIMP,
             5 => ResultCode::REFUSED,
-            _ => ResultCode::UNKNOWN(num), // Handle unknown codes gracefully
-        }
-    }
-
-    /// Get the numeric representation of the `ResultCode`
-    pub fn to_num(&self) -> u8 {
-        match *self {
-            ResultCode::NOERROR => 0,
-            ResultCode::FORMERR => 1,
-            ResultCode::SERVFAIL => 2,
-            ResultCode::NXDOMAIN => 3,
-            ResultCode::NOTIMP => 4,
-            ResultCode::REFUSED => 5,
-            ResultCode::UNKNOWN(num) => num,
+            0 | _ => ResultCode::NOERROR,
         }
     }
 }
+    /// Get the numeric representation of the `ResultCode`
+//     pub fn to_num(&self) -> u8 {
+//         match *self {
+//             ResultCode::NOERROR => 0,
+//             ResultCode::FORMERR => 1,
+//             ResultCode::SERVFAIL => 2,
+//             ResultCode::NXDOMAIN => 3,
+//             ResultCode::NOTIMP => 4,
+//             ResultCode::REFUSED => 5,
+//             ResultCode::UNKNOWN(num) => num,
+//         }
+//     }
+// }
 
 
 /// Representation of a DNS header
@@ -660,85 +657,71 @@ pub struct DnsHeader {
 impl DnsHeader {
 
     pub fn new() -> DnsHeader {
-        DnsHeader {
-            id: 0,
-
-            recursion_desired: false,
-            truncated_message: false,
-            authoritative_answer: false,
-            opcode: 0,
-            response: false,
-
-            rescode: ResultCode::NOERROR,
-            checking_disabled: false,
-            authed_data: false,
-            z: false,
-            recursion_available: false,
-
-            questions: 0,
-            answers: 0,
-            authoritative_entries: 0,
-            resource_entries: 0,
+        /// creates a new dns header with default values
+        pub fn new() -> Self {
+            Self::default()
         }
-    }
-    /// Writes the DNS header to the provided buffer.
-     pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
-        buffer.write_u16(self.id)?;
+        
+         /// Writes the DNS header to the provided buffer.
+         pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+            buffer.write_u16(self.id)?;
+    
+            // write the flag as two bytes
+             let flags1 = (self.recursion_desired as u8)
+                  | ((self.truncated_message as u8) << 1)
+                  | ((self.authoritative_answer as u8) << 2)
+                  | (self.opcode << 3)
+                  | ((self.response as u8) << 7);
 
-        buffer.write_u8(
-            (self.recursion_desired as u8)
-                | ((self.truncated_message as u8) << 1)
-                | ((self.authoritative_answer as u8) << 2)
-                | (self.opcode << 3)
-                | ((self.response as u8) << 7) as u8,
-        )?;
+             let flags2 = (self.rescode as u8)
+                    | ((self.checking_disabled as u8) << 4)
+                    | ((self.authed_data as u8) << 5)
+                    | ((self.z as u8) << 6)
+                    | ((self.recursion_available as u8) << 7); 
+    
+            buffer.write_u8(flags1)?;
+            buffer.write_u8(flags2)?;
+             
+            buffer.write_u16(self.questions)?;
+            buffer.write_u16(self.answers)?;
+            buffer.write_u16(self.authoritative_entries)?;
+            buffer.write_u16(self.resource_entries)?;
+    
+            Ok(()) 
+        }
 
-        buffer.write_u8(
-            (self.rescode.clone() as u8)
-                | ((self.checking_disabled as u8) << 4)
-                | ((self.authed_data as u8) << 5)
-                | ((self.z as u8) << 6)
-                | ((self.recursion_available as u8) << 7),
-        )?;
+        ///Returns the fixed binary size of the DNS Header
+        pub fn binary_len(&self) -> usize {
+            12 // DNS header being 12 bytes always.
+        }
 
-        buffer.write_u16(self.questions)?;
-        buffer.write_u16(self.answers)?;
-        buffer.write_u16(self.authoritative_entries)?;
-        buffer.write_u16(self.resource_entries)?;
+        pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
+            self.id = buffer.read_u16()?;
 
-        Ok(())
-    }
+            // Read the flags as two bytes.
+            let flags1 = buffer.read_u8()?;
+            let flags2 = buffer.read_u8()?;
 
-    pub fn binary_len(&self) -> usize {
-        12
-    }
+            self.recursion_desired = (flags1 & (1 << 0)) > 0;
+            self.truncated_message = (flags1 & (1 << 1)) > 0;
+            self.authoritative_answer = (flags1 & (1 << 2)) > 0;
+            self.opcode = (flags1 >> 3) & 0x0F;
+            self.response = (flags1 & (1 << 7)) > 0;
 
-    pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
-        self.id = buffer.read_u16()?;
+            self.rescode = ResultCode::from_num(flags2 & 0x0F);
+            self.checking_disabled = (flags2 & (1 << 4)) > 0;
+            self.authed_data = (flags2 & (1 << 5)) > 0;
+            self.z = (flags2 & (1 << 6)) > 0;
+            self.recursion_available = (flags2 & (1 << 7)) > 0;
 
-        let flags = buffer.read_u16()?;
-        let a = (flags >> 8) as u8;
-        let b = (flags & 0xFF) as u8;
-        self.recursion_desired = (a & (1 << 0)) > 0;
-        self.truncated_message = (a & (1 << 1)) > 0;
-        self.authoritative_answer = (a & (1 << 2)) > 0;
-        self.opcode = (a >> 3) & 0x0F;
-        self.response = (a & (1 << 7)) > 0;
+            self.questions = buffer.read_u16()?;
+            self.answers = buffer.read_u16()?;
+            self.authoritative_entries = buffer.read_u16()?;
+            self.resource_entries = buffer.read_u16()?;
 
-        self.rescode = ResultCode::from_num(b & 0x0F);
-        self.checking_disabled = (b & (1 << 4)) > 0;
-        self.authed_data = (b & (1 << 5)) > 0;
-        self.z = (b & (1 << 6)) > 0;
-        self.recursion_available = (b & (1 << 7)) > 0;
-
-        self.questions = buffer.read_u16()?;
-        self.answers = buffer.read_u16()?;
-        self.authoritative_entries = buffer.read_u16()?;
-        self.resource_entries = buffer.read_u16()?;
-
-        // Return the constant header size
-        Ok(())
-    }
+            // Return the constant header size
+            Ok(())
+      }
 }
 
 impl fmt::Display for DnsHeader {
