@@ -655,72 +655,71 @@ pub struct DnsHeader {
 }
 
 impl DnsHeader{
-    pub fn new() -> DnsHeader {
-        /// creates a new dns header with default values
-        pub fn new() -> Self {
-            Self::default()
-        }
+    
+    /// creates a new dns header with default values
+    pub fn new() -> Self {
+        Self::default()
+    }
         
-         /// Writes the DNS header to the provided buffer.
-         pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
-            buffer.write_u16(self.id)?;
+    /// Writes the DNS header to the provided buffer.
+    pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+        buffer.write_u16(self.id)?;
     
-            // write the flag as two bytes
-             let flags1 = (self.recursion_desired as u8)
-                  | ((self.truncated_message as u8) << 1)
-                  | ((self.authoritative_answer as u8) << 2)
-                  | (self.opcode << 3)
-                  | ((self.response as u8) << 7);
+        // write the flag as two bytes
+        let flags1 = (self.recursion_desired as u8)
+            | ((self.truncated_message as u8) << 1)
+            | ((self.authoritative_answer as u8) << 2)
+            | (self.opcode << 3)
+            | ((self.response as u8) << 7);
 
-             let flags2 = (self.rescode as u8)
-                    | ((self.checking_disabled as u8) << 4)
-                    | ((self.authed_data as u8) << 5)
-                    | ((self.z as u8) << 6)
-                    | ((self.recursion_available as u8) << 7); 
-    
-            buffer.write_u8(flags1)?;
-            buffer.write_u8(flags2)?;
-             
-            buffer.write_u16(self.questions)?;
-            buffer.write_u16(self.answers)?;
-            buffer.write_u16(self.authoritative_entries)?;
-            buffer.write_u16(self.resource_entries)?;
-    
-            Ok(()) 
-        }
+        let flags2 = (self.rescode as u8)
+            | ((self.checking_disabled as u8) << 4)
+            | ((self.authed_data as u8) << 5)
+            | ((self.z as u8) << 6)
+            | ((self.recursion_available as u8) << 7); 
 
-        ///Returns the fixed binary size of the DNS Header
-        pub fn binary_len(&self) -> usize {
-            12 // DNS header being 12 bytes always.
-        }
+        buffer.write_u8(flags1)?;
+        buffer.write_u8(flags2)?;
+            
+        buffer.write_u16(self.questions)?;
+        buffer.write_u16(self.answers)?;
+        buffer.write_u16(self.authoritative_entries)?;
+        buffer.write_u16(self.resource_entries)?;
 
-        pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
-            self.id = buffer.read_u16()?;
+        Ok(()) 
+    }
 
-            // Read the flags as two bytes.
-            let flags1 = buffer.read_u8()?;
-            let flags2 = buffer.read_u8()?;
+    ///Returns the fixed binary size of the DNS Header
+    pub fn binary_len(&self) -> usize {
+        12 // DNS header being 12 bytes always.
+    }
 
-            self.recursion_desired = (flags1 & (1 << 0)) > 0;
-            self.truncated_message = (flags1 & (1 << 1)) > 0;
-            self.authoritative_answer = (flags1 & (1 << 2)) > 0;
-            self.opcode = (flags1 >> 3) & 0x0F;
-            self.response = (flags1 & (1 << 7)) > 0;
+    pub fn read<T: PacketBuffer>(&mut self, buffer: &mut T) -> Result<()> {
+        self.id = buffer.read_u16()?;
 
-            self.rescode = ResultCode::from_num(flags2 & 0x0F);
-            self.checking_disabled = (flags2 & (1 << 4)) > 0;
-            self.authed_data = (flags2 & (1 << 5)) > 0;
-            self.z = (flags2 & (1 << 6)) > 0;
-            self.recursion_available = (flags2 & (1 << 7)) > 0;
+        // Read the flags as two bytes.
+        let flags1 = buffer.read_u8()?;
+        let flags2 = buffer.read_u8()?;
 
-            self.questions = buffer.read_u16()?;
-            self.answers = buffer.read_u16()?;
-            self.authoritative_entries = buffer.read_u16()?;
-            self.resource_entries = buffer.read_u16()?;
+        self.recursion_desired = (flags1 & (1 << 0)) > 0;
+        self.truncated_message = (flags1 & (1 << 1)) > 0;
+        self.authoritative_answer = (flags1 & (1 << 2)) > 0;
+        self.opcode = (flags1 >> 3) & 0x0F;
+        self.response = (flags1 & (1 << 7)) > 0;
 
-            // Return the constant header size
-            Ok(())
-        }
+        self.rescode = ResultCode::from_num(flags2 & 0x0F);
+        self.checking_disabled = (flags2 & (1 << 4)) > 0;
+        self.authed_data = (flags2 & (1 << 5)) > 0;
+        self.z = (flags2 & (1 << 6)) > 0;
+        self.recursion_available = (flags2 & (1 << 7)) > 0;
+
+        self.questions = buffer.read_u16()?;
+        self.answers = buffer.read_u16()?;
+        self.authoritative_entries = buffer.read_u16()?;
+        self.resource_entries = buffer.read_u16()?;
+
+        // Return the constant header size
+        Ok(())
     }
 
 }
