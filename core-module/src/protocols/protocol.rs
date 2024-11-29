@@ -630,7 +630,7 @@ impl ResultCode {
 
 
 /// Representation of a DNS header
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct DnsHeader {
     pub id: u16, // Transaction ID
 
@@ -1009,7 +1009,7 @@ impl DnsPacket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dns::buffer::{PacketBuffer, VectorPacketBuffer};
+    use crate::buffer::buffer::{PacketBuffer, VectorPacketBuffer};
     use std::net::Ipv4Addr;
 
     #[test]
@@ -1080,8 +1080,8 @@ mod tests {
         let mut packet = DnsPacket::new();
         packet.authorities.push(DnsRecord::SOA {
             domain: "example.com".to_string(),
-            mname: "ns1.example.com".to_string(),
-            rname: "admin.example.com".to_string(),
+            m_name: "ns1.example.com".to_string(),
+            r_name: "admin.example.com".to_string(),
             serial: 20231201,
             refresh: 7200,
             retry: 3600,
