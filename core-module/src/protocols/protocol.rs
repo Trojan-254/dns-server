@@ -745,4 +745,439 @@ impl fmt::Display for DnsHeader {
     }
 }
 
+///DNS Question representation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsQuestion {
+    pub name: String,
+    pub qtype: QueryType,
+}
 
+impl DnsQuestion {
+    /// creates a new dns question.
+    pub fn new(name: String, qtype: QueryType) -> Self {
+        Self { name, qtype }
+    }
+
+    /// calculates the binary length of a dns question.
+    pub fn binary_len(&self) -> usize {
+        self.name.split('.').map(|x| x.len() + 1).sum::<usize>() + 1
+    }
+
+    /// Wrte the dns question to a packet buffer
+    pub fn write<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+        buffer.write_qname(&self.name)?;
+        buffer.write_u16(self.qtype.to_num())?;
+        buffer.write_u16(1)?; // Class (1 = IN)
+        Ok(())
+    }
+
+    /// Reads the dns question from the packet buffer
+    pub fn read<T: PacketBuffer>(&self, buffer: &mut T) -> Result<()> {
+        buffer.read_qname(&mut self.name)?;
+        self.qtype = QueryType::from_num(buffer.read_u16()?);
+        buffer.read_u16()?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for DnsQuestion {
+    fn fmt(&self, &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f"DnsQuestion:")?;
+        writeln!(f, "\tname: {}", self.name)?;
+        writeln!(f, "\trecord type: {:?}", self.qtype)?;
+
+        Ok(())
+    }
+}
+
+
+/// Representation of a DNS Packet.
+///
+/// This was our end goal all along. the queen of our chess pieces.
+/// A packet can be read and written in a single operation.
+#[derive(Debug, Clone, Default)]
+pub struct DnsPacket {
+    pub header: DnsHeader,
+    pub questions: Vec<DnsQuestion>,
+    pub answers: Vec<DnsRecord>,
+    pub authorities: Vec<DnsRecord>,
+    pub resources: Vec<DnsRecord>,
+}
+
+impl DnsPacket {
+    /// Creates a new dns packet.
+    pub fn new() {
+        DnsPacket {
+            header: DnsHeader::new(),
+            questions: Vec::new(),
+            answers: Vec::new(),
+            authorities: Vec::new(),
+            resources: Vec::new(),
+        }
+    }
+
+    /// Reads a dns packet from the packet buffer
+    pub fn from_buffer<T: PacketBuffer>(buffer: &mut T) -> Result<Self> {
+        let mut packet = Packet::new();
+
+        // Read the dns header
+        packet.header.read(buffer)?;
+
+        // Helper functions to read the records to a target vector
+        fn read_records<T: PacketBuffer>(
+            count: u16,
+            buffer: &mut T,
+            target: &mut Vec<DnsRecord>,
+        ) -> Result <()> {
+            for _ in 0..count {
+                target.push(DnsRecord::read(buffer)?);
+            }
+            
+            Ok(())
+        }
+
+        // Read the questions
+        for _ in 0..packet.header.questions {
+            let mut question = DnsQuestion::new("".to_string(), QueryType::UNKNOWN(0));
+            question.read(buffer)?;
+            packet.question.push(question);
+        }
+
+        // Read answers, authorities, and additional resources
+        read_records(packet.header.answers, buffer, &mut packet.answers)?;
+        read_records(packet.header.authoritative_entries, buffer, &mut packet.authorities)?;
+        read_records(packet.header.resource_entries, buffer, &mut packet.resources)?;
+
+        Ok(packet)
+    }
+
+    #[allow(dead_code)]
+    pub fn print(&self) {
+        /// Prints the DNS Packet details for debbuging
+        println!("{}", self.header);
+
+        fn print_section<T: std::fmt::Debug>(label: &str, records: &[T]) {
+            println!("", label);
+            for record in records {
+                println!("\t{:?}", record);
+            }
+        }
+
+        print_section("questions", &self.questions);
+        print_section("answers", &self.answers);
+        print_section("authorities", &self.authorities);
+        print_section("resources", &self.resources);
+
+
+    }
+
+    /// Retrieves the ttl value from the first SOA record in the authorities section
+    pub fn get_ttl_from_soa(&self) -> Option<u32> {
+        self.authorities.iter().find_map(|record| {
+            if let DnsRecord::SOA { minimum, .. } = record {
+                Some(*minimum)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Gets a random A record's address from the answers section
+    pub fn get_random_a(&self) -> Option<String> {
+        self.answers.iter().filter_map(|record| {
+            if let DnsRecord::A { addr, .. } = record {
+                Some(addr.to_string())
+            } else {
+                None
+            }
+        }).next()
+    }
+
+    /// Retrieves unresolved CNAME records from the answers section
+    pub fn get_unresolved_cnames(&self) -> Vec<DnsRecord> {
+        self.answers
+            .iter()
+            .filter(|answer| {
+                if let DnsRecord::CNAME { host, .. } = answer {
+                    !self.answers.iter().any(|other| {
+                        if let DnsRecord::A { domain, .. } = other {
+                            domain == host
+                        } else {
+                            false
+                        }
+                    })
+                } else {
+                    false
+                }
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Retrieves a resolved NS record for the given query name
+    pub fn get_resolved_ns(&self, qname: &str) -> Option<String> {
+        self.authorities.iter().filter_map(|auth| {
+            if let DnsRecord::NS { domain, host, .. } = auth {
+                if qname.ends_with(domain) {
+                    self.resources.iter().find_map(|resource| {
+                        if let DnsRecord::A { domain, addr, .. } = resource {
+                            if domain == host {
+                                return Some(addr.to_string());
+                            }
+                        }
+                        None
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }).next()
+    }
+
+    /// Retrieves an unresolved NS record for the given query name
+    pub fn get_unresolved_ns(&self, qname: &str) -> Option<String> {
+        self.authorities.iter().filter_map(|auth| {
+            if let DnsRecord::NS { domain, host, .. } = auth {
+                if qname.ends_with(domain) {
+                    Some(host.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }).next()
+    }
+
+    /// Writes the DNS packet to a packet buffer with a specified maximum size
+    pub fn write<T: PacketBuffer>(&mut self, buffer: &mut T, max_size: usize) -> Result<()> {
+        let mut test_buffer = VectorPacketBuffer::new();
+        let mut size = self.header.binary_len();
+
+        // Write questions
+        for question in &self.questions {
+            size += question.binary_len();
+            question.write(&mut test_buffer)?;
+        }
+
+        let mut record_count = 0;
+
+        // Write answers, authorities, and resources
+        for (i, rec) in self
+            .answers
+            .iter()
+            .chain(&self.authorities)
+            .chain(&self.resources)
+            .enumerate()
+        {
+            size += rec.write(&mut test_buffer)?;
+            if size > max_size {
+                self.header.truncated_message = true;
+                break;
+            }
+
+            record_count = i + 1;
+
+            if i < self.answers.len() {
+                self.header.answers += 1;
+            } else if i < self.answers.len() + self.authorities.len() {
+                self.header.authoritative_entries += 1;
+            } else {
+                self.header.resource_entries += 1;
+            }
+        }
+
+        self.header.questions = self.questions.len() as u16;
+        self.header.write(buffer)?;
+
+        // Write questions and records to the buffer
+        for question in &self.questions {
+            question.write(buffer)?;
+        }
+
+        for rec in self
+            .answers
+            .iter()
+            .chain(&self.authorities)
+            .chain(&self.resources)
+            .take(record_count)
+        {
+            rec.write(buffer)?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dns::buffer::{PacketBuffer, VectorPacketBuffer};
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn test_packet_serialization_and_deserialization() {
+        let mut packet = DnsPacket::new();
+        packet.header.id = 1337;
+        packet.header.response = true;
+
+        packet.questions.push(DnsQuestion::new(
+            "google.com".to_string(),
+            QueryType::NS,
+        ));
+
+        packet.answers.push(DnsRecord::NS {
+            domain: "google.com".to_string(),
+            host: "ns1.google.com".to_string(),
+            ttl: TransientTtl(3600),
+        });
+
+        let mut buffer = VectorPacketBuffer::new();
+        packet.write(&mut buffer, 0xFFFF).unwrap();
+
+        buffer.seek(0).unwrap();
+
+        let parsed_packet = DnsPacket::from_buffer(&mut buffer).unwrap();
+
+        assert_eq!(packet.header, parsed_packet.header);
+        assert_eq!(packet.questions, parsed_packet.questions);
+        assert_eq!(packet.answers, parsed_packet.answers);
+    }
+
+    #[test]
+    fn test_unresolved_cnames() {
+        let mut packet = DnsPacket::new();
+        packet.answers.push(DnsRecord::CNAME {
+            domain: "example.com".to_string(),
+            host: "alias.example.com".to_string(),
+            ttl: TransientTtl(3600),
+        });
+
+        let unresolved = packet.get_unresolved_cnames();
+        assert_eq!(unresolved.len(), 1);
+        assert_eq!(
+            unresolved[0],
+            DnsRecord::CNAME {
+                domain: "example.com".to_string(),
+                host: "alias.example.com".to_string(),
+                ttl: TransientTtl(3600),
+            }
+        );
+    }
+
+    #[test]
+    fn test_random_a_record() {
+        let mut packet = DnsPacket::new();
+        packet.answers.push(DnsRecord::A {
+            domain: "example.com".to_string(),
+            addr: Ipv4Addr::new(127, 0, 0, 1),
+            ttl: TransientTtl(3600),
+        });
+
+        let random_a = packet.get_random_a();
+        assert_eq!(random_a, Some("127.0.0.1".to_string()));
+    }
+
+    #[test]
+    fn test_ttl_from_soa() {
+        let mut packet = DnsPacket::new();
+        packet.authorities.push(DnsRecord::SOA {
+            domain: "example.com".to_string(),
+            mname: "ns1.example.com".to_string(),
+            rname: "admin.example.com".to_string(),
+            serial: 20231201,
+            refresh: 7200,
+            retry: 3600,
+            expire: 1209600,
+            minimum: 600,
+        });
+
+        let ttl = packet.get_ttl_from_soa();
+        assert_eq!(ttl, Some(600));
+    }
+
+    #[test]
+    fn test_resolved_ns() {
+        let mut packet = DnsPacket::new();
+
+        packet.authorities.push(DnsRecord::NS {
+            domain: "example.com".to_string(),
+            host: "ns1.example.com".to_string(),
+            ttl: TransientTtl(3600),
+        });
+
+        packet.resources.push(DnsRecord::A {
+            domain: "ns1.example.com".to_string(),
+            addr: Ipv4Addr::new(192, 168, 1, 1),
+            ttl: TransientTtl(3600),
+        });
+
+        let resolved_ns = packet.get_resolved_ns("example.com");
+        assert_eq!(resolved_ns, Some("192.168.1.1".to_string()));
+    }
+
+    #[test]
+    fn test_unresolved_ns() {
+        let mut packet = DnsPacket::new();
+
+        packet.authorities.push(DnsRecord::NS {
+            domain: "example.com".to_string(),
+            host: "ns1.example.com".to_string(),
+            ttl: TransientTtl(3600),
+        });
+
+        let unresolved_ns = packet.get_unresolved_ns("example.com");
+        assert_eq!(unresolved_ns, Some("ns1.example.com".to_string()));
+    }
+
+    #[test]
+    fn test_packet_truncation() {
+        let mut packet = DnsPacket::new();
+        packet.header.id = 1337;
+
+        // Add multiple records to exceed the size limit
+        for i in 0..10 {
+            packet.answers.push(DnsRecord::A {
+                domain: format!("example{}.com", i),
+                addr: Ipv4Addr::new(127, 0, 0, 1),
+                ttl: TransientTtl(3600),
+            });
+        }
+
+        let mut buffer = VectorPacketBuffer::new();
+        let max_size = 512; // Typical DNS packet size limit for UDP
+        let result = packet.write(&mut buffer, max_size);
+
+        assert!(result.is_ok());
+        assert!(packet.header.truncated_message);
+    }
+
+    #[test]
+    fn test_empty_packet() {
+        let packet = DnsPacket::new();
+        let mut buffer = VectorPacketBuffer::new();
+
+        let result = packet.write(&mut buffer, 0xFFFF);
+        assert!(result.is_ok());
+
+        buffer.seek(0).unwrap();
+        let parsed_packet = DnsPacket::from_buffer(&mut buffer).unwrap();
+
+        assert_eq!(packet.header, parsed_packet.header);
+        assert!(parsed_packet.questions.is_empty());
+        assert!(parsed_packet.answers.is_empty());
+        assert!(parsed_packet.authorities.is_empty());
+        assert!(parsed_packet.resources.is_empty());
+    }
+
+    #[test]
+    fn test_packet_with_invalid_buffer() {
+        let mut buffer = VectorPacketBuffer::new();
+        buffer.write_u8(255).unwrap(); // Write invalid data to the buffer
+
+        let result = DnsPacket::from_buffer(&mut buffer);
+        assert!(result.is_err());
+    }
+}
