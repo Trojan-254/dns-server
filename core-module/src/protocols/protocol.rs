@@ -2,7 +2,6 @@
 
 
 use std::fmt;
-use rand::random;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::net::{Ipv4Addr, Ipv6Addr};
@@ -848,7 +847,7 @@ impl DnsPacket {
 
     #[allow(dead_code)]
     pub fn print(&self) {
-        /// Prints the DNS Packet details for debbuging
+        
         println!("{}", self.header);
 
         fn print_section<T: std::fmt::Debug>(label: &str, records: &[T]) {
@@ -1151,7 +1150,7 @@ mod tests {
 
     #[test]
     fn test_empty_packet() {
-        let packet = DnsPacket::new();
+        let mut packet = DnsPacket::new();
         let mut buffer = VectorPacketBuffer::new();
 
         let result = packet.write(&mut buffer, 0xFFFF);
