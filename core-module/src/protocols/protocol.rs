@@ -948,33 +948,28 @@ impl DnsPacket {
     /// Writes the DNS packet to a packet buffer with a specified maximum size
     pub fn write<T: PacketBuffer>(&mut self, buffer: &mut T, max_size: usize) -> Result<()> {
         let mut test_buffer = VectorPacketBuffer::new();
-        let mut size = self.header.binary_len();
 
-        // Write questions
-        for question in &self.questions {
+        let mut size = self.header.binary_len();
+        for ref question in &self.questions {
             size += question.binary_len();
             question.write(&mut test_buffer)?;
         }
 
-        let mut record_count = 0;
+        let mut record_count = self.answers.len() + self.authorities.len() + self.resources.len();
 
-        // Write answers, authorities, and resources
         for (i, rec) in self
             .answers
             .iter()
-            .chain(&self.authorities)
-            .chain(&self.resources)
+            .chain(self.authorities.iter())
+            .chain(self.resources.iter())
             .enumerate()
         {
             size += rec.write(&mut test_buffer)?;
             if size > max_size {
+                record_count = i;
                 self.header.truncated_message = true;
                 break;
-            }
-
-            record_count = i + 1;
-
-            if i < self.answers.len() {
+            } else if i < self.answers.len() {
                 self.header.answers += 1;
             } else if i < self.answers.len() + self.authorities.len() {
                 self.header.authoritative_entries += 1;
@@ -984,9 +979,9 @@ impl DnsPacket {
         }
 
         self.header.questions = self.questions.len() as u16;
+
         self.header.write(buffer)?;
 
-        // Write questions and records to the buffer
         for question in &self.questions {
             question.write(buffer)?;
         }
@@ -994,8 +989,8 @@ impl DnsPacket {
         for rec in self
             .answers
             .iter()
-            .chain(&self.authorities)
-            .chain(&self.resources)
+            .chain(self.authorities.iter())
+            .chain(self.resources.iter())
             .take(record_count)
         {
             rec.write(buffer)?;
@@ -1003,6 +998,7 @@ impl DnsPacket {
 
         Ok(())
     }
+    
 }
 
 #[cfg(test)]
@@ -1086,6 +1082,7 @@ mod tests {
             retry: 3600,
             expire: 1209600,
             minimum: 600,
+            ttl: TransientTtl(3600),
         });
 
         let ttl = packet.get_ttl_from_soa();
