@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error, From};
 
-use crate::dns::authority::Authority;
-use crate::dns::cache::SynchronizedCache;
-use crate::dns::client::{DnsClient, DnsNetworkClient};
-use crate::dns::resolve::{DnsResolver, ForwardingDnsResolver, RecursiveDnsResolver};
+use crate::auhtorities::authority::Authority;
+use crate::cache::memory_cache::SynchronizedCache;
+use crate::client::{DnsClient, DnsNetworkClient};
+use crate::resolvers::resolve::{DnsResolver, ForwardingDnsResolver, RecursiveDnsResolver};
 
 #[derive(Debug, Display, From, Error)]
 pub enum ContextError {
