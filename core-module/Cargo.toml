@@ -9,3 +9,10 @@ derive_more = "0.99.9"
 rand = "0.8.5"
 serde = "1.0.215"
 serde_derive = "1.0.215"
+chrono = { version = "0.4", features = ["serde"] }
+dashmap = "5.3"
+metrics = "0.20"
+metrics-exporter-prometheus = "0.7"
+tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
+tracing = "0.1"
