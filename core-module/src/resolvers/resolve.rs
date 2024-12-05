@@ -3,13 +3,13 @@ use std::sync::Arc;
 use derive_more::{Display, Error, From};
 use async_trait::async_trait;
 
-use crate::dns::context::ServerContext;
-use crate::dns::protocol::{DnsPacket, QueryType, ResultCode};
+use crate::server::context::ServerContext;
+use crate::protocols::protocol::{DnsPacket, QueryType, ResultCode};
 
 #[derive(Debug, Display, From, Error)]
 pub enum ResolveError {
-    Client(crate::dns::client::ClientError),
-    Cache(crate::dns::cache::CacheError),
+    Client(crate::client::ClientError),
+    Cache(crate::cache::CacheError),
     Io(std::io::Error),
     NoServerFound,
 }
