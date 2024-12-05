@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use async_trait::async_trait;
-use crate::dns::context::ServerContext;
-use crate::dns::protocol::{DnsPacket, QueryType};
-use crate::dns::resolve::{DnsResolver, ResolveError, Result};
+use crate::server::context::ServerContext;
+use crate::protocols::protocol::{DnsPacket, QueryType};
+use crate::resolvers::resolve::{DnsResolver, ResolveError, Result};
 
 /// A forwading DNS Resolver
 ///
