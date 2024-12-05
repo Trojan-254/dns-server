@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use derive_more::{Display, Error, From};
 
-use crate::auhtorities::authority::Authority;
+use crate::authorities::authority::Authority;
 use crate::cache::memory_cache::SynchronizedCache;
 use crate::client::{DnsClient, DnsNetworkClient};
 use crate::resolvers::resolve::{DnsResolver, ForwardingDnsResolver, RecursiveDnsResolver};
