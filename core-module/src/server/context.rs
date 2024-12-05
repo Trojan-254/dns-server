@@ -9,7 +9,10 @@ use derive_more::{Display, Error, From};
 use crate::authorities::authority::Authority;
 use crate::cache::memory_cache::SynchronizedCache;
 use crate::client::{DnsClient, DnsNetworkClient};
-use crate::resolvers::resolve::{DnsResolver, ForwardingDnsResolver, RecursiveDnsResolver};
+use crate::resolvers::resolve::DnsResolver;
+use crate::resolvers::recursive_resolver::RecursiveDnsResolver;
+use crate::resolvers::forwading_resolver::ForwadingDnsResolver;
+
 
 #[derive(Debug, Display, From, Error)]
 pub enum ContextError {
