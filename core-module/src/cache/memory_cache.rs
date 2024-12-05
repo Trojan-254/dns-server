@@ -1,10 +1,11 @@
 use chrono::{DateTime, Duration, Local};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
+use serde_derive::{Serialize, Deserialize};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
-use crate::dns::protocol::{DnsPacket, DnsRecord, QueryType, ResultCode};
+use crate::protocols::protocol::{DnsPacket, DnsRecord, QueryType, ResultCode};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CacheError {
