@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use async_trait::async_trait;
 use tracing::{debug, error, info};
-use crate::dns::context::ServerContext;
-use crate::dns::protocol::{DnsPacket, QueryType, ResultCode};
-use crate::dns::resolve::{DnsResolver, ResolveError, Result};
+use crate::server::context::ServerContext;
+use crate::protocols::protocol::{DnsPacket, QueryType, ResultCode};
+use crate::resolvers::resolve::{DnsResolver, ResolveError, Result};
 
 /// A Recursive DNS Resolver
 ///
@@ -29,7 +29,7 @@ impl DnsResolver for RecursiveDnsResolver {
     }
 
     /// Asynchronous recursive DNS Query resolution.
-    async fn perfom(&mut self, qname: &str: qtype: QueryType) -> Result<DnsPacket> {
+    async fn perfom(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket> {
          // Find the closest name server by progressively moving towards the root servers.
          let mut tentative_ns = None;
          let labels = qname.split('.').collect::<Vec<&str>>();
@@ -67,7 +67,7 @@ impl DnsResolver for RecursiveDnsResolver {
                  .send_query_async(qname, qtype.clone(), server, false)
                  .await
              {
-                 Ok(res) = res,
+                 Ok(res) => res,
                  Err(err) => {
                     error!(target: "dns", "Failed to send query: {:?}", err);
                     return Err(ResolveError::client(err));
