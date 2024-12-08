@@ -8,7 +8,7 @@ use derive_more::{Display, Error, From};
 
 use crate::authorities::authority::Authority;
 use crate::cache::memory_cache::SynchronizedCache;
-use crate::client::{DnsClient, DnsNetworkClient};
+use crate::client::network_client::{DnsClient, DnsNetworkClient};
 use crate::resolvers::resolve::DnsResolver;
 use crate::resolvers::recursive_resolver::RecursiveDnsResolver;
 use crate::resolvers::forwading_resolver::ForwadingDnsResolver;
@@ -17,9 +17,9 @@ use crate::resolvers::forwading_resolver::ForwadingDnsResolver;
 #[derive(Debug, Display, From, Error)]
 pub enum ContextError {
     #[display(fmt = "Authority Error: {}", _0)]
-    Authority(crate::dns::authority::AuthorityError),
+    Authority(crate::authorities::authority::AuthorityError),
     #[display(fmt = "Client Error: {}", _0)]
-    Client(crate::dns::client::ClientError),
+    Client(crate::client::network_client::ClientError),
     #[display(fmt = "IO Error: {}", _0)]
     Io(std::io::Error),
 }

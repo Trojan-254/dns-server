@@ -2,7 +2,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use crate::server::context::ServerContext;
 use crate::protocols::protocol::{DnsPacket, QueryType};
-use crate::resolvers::resolve::{DnsResolver, ResolveError, Result};
+use crate::resolvers::resolve::{DnsResolver, ResolveError};
 
 /// A forwading DNS Resolver
 ///
@@ -30,7 +30,7 @@ impl DnsResolver for ForwadingDnsResolver {
      }
 
      /// Perfoms an asynchronous DNS Query to the external server.
-     async fn perfom(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket> {
+     async fn perform(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket> {
            let (host, port) = &self.server;
 
            // Asynchronous query to the external DNS server

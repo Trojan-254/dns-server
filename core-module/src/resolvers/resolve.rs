@@ -8,8 +8,8 @@ use crate::protocols::protocol::{DnsPacket, QueryType, ResultCode};
 
 #[derive(Debug, Display, From, Error)]
 pub enum ResolveError {
-    Client(crate::client::ClientError),
-    Cache(crate::cache::CacheError),
+    Client(crate::client::network_client::ClientError),
+    Cache(crate::cache::memory_cache::CacheError),
     Io(std::io::Error),
     NoServerFound,
 }
@@ -32,12 +32,12 @@ pub trait DnsResolver {
         let context = self.get_context();
 
         // Check if authority has answer.
-        if let Some(reponse) = context.authority.query(qname, qtype) {
+        if let Some(response) = context.authority.query(qname, qtype) {
            return Ok(response);
         }
 
         // Refuse if recursion is disabled or not allowed.
-        if !recursive || !context.allow_recursive {
+        if !recursion || !context.allow_recursive {
            return Ok(create_error_response(ResultCode::REFUSED));
         }
 

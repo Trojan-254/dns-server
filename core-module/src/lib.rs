@@ -5,3 +5,5 @@ pub mod client;
 pub mod monitoring;
 pub mod resolvers;
 pub mod server;
+pub mod authorities;
+pub mod network_utilities;

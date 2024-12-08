@@ -11,7 +11,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::protocols::protocol::{DnsPacket, DnsRecord, QueryType, ResultCode};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, error::Error)]
 pub enum CacheError {
     #[error("I/O Error: {0}")]
     Io(std::io::Error),
