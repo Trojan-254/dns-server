@@ -14,7 +14,7 @@ pub enum ResolveError {
     NoServerFound,
 }
 
-type Result<T> = std::result::Result<T, ResolveError>;
+pub type Result<T> = std::result::Result<T, ResolveError>;
 
 /// Asynchronous trait for DNS resolvers to implement various resolution strategies.
 #[async_trait]
