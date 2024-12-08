@@ -30,7 +30,7 @@ impl DnsResolver for ForwadingDnsResolver {
      }
 
      /// Perfoms an asynchronous DNS Query to the external server.
-     async fn perform(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket> {
+     async fn perform(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket, ResolveError> {
            let (host, port) = &self.server;
 
            // Asynchronous query to the external DNS server
