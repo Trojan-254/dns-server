@@ -26,7 +26,7 @@ impl DnsResolver for RecursiveDnsResolver {
         self.context.clone()
     }
 
-    async fn perform(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket, ResolveError> {
+    async fn perform(&mut self, qname: &str, qtype: QueryType) -> Result<DnsPacket> {
         // Find the closest name server by progressively moving towards root servers.
         let mut tentative_ns = None;
         let labels = qname.split('.').collect::<Vec<&str>>();
