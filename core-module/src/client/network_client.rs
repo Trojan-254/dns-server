@@ -43,6 +43,7 @@ struct PendingQuery {
     tx: Sender<Option<DnsPacket>>,
 }
 
+#[derive(Debug)]
 pub struct DnsNetworkClient {
     total_sent: AtomicUsize,
     total_failed: AtomicUsize,
