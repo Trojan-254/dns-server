@@ -1,6 +1,8 @@
 //! buffers for use when writing and reading dns packets
 
 use std::collections::BTreeMap;
+use tokio::io::AsyncRead;
+use tokio::io::AsyncReadExt;
 use std::io::Read;
 use std::fmt;
 
@@ -297,7 +299,7 @@ impl PacketBuffer for VectorPacketBuffer {
 
 pub struct StreamPacketBuffer<'a, T>
 where
-    T: Read,
+    T: AsyncRead,
 {
     pub stream: &'a mut T,
     pub buffer: Vec<u8>,
@@ -306,9 +308,9 @@ where
 
 impl<'a, T> StreamPacketBuffer<'a, T>
 where
-    T: Read + 'a,
+    T: AsyncRead + Unpin + 'a,
 {
-    pub fn new(stream: &'a mut T) -> StreamPacketBuffer<'_, T> {
+    pub fn new(stream: &'a mut T) -> StreamPacketBuffer<'a, T> {
         StreamPacketBuffer {
             stream: stream,
             buffer: Vec::new(),
@@ -319,7 +321,7 @@ where
 
 impl<'a, T> PacketBuffer for StreamPacketBuffer<'a, T>
 where
-    T: Read + 'a,
+    T: AsyncRead + 'a,
 {
     fn find_label(&self, _: &str) -> Option<usize> {
         None

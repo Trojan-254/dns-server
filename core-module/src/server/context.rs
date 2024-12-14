@@ -11,7 +11,7 @@ use crate::cache::memory_cache::SynchronizedCache;
 use crate::client::network_client::{DnsClient, DnsNetworkClient};
 use crate::resolvers::resolve::DnsResolver;
 use crate::resolvers::recursive_resolver::RecursiveDnsResolver;
-use crate::resolvers::forwading_resolver::ForwadingDnsResolver;
+// use crate::resolvers::forwading_resolver::ForwadingDnsResolver;
 
 
 #[derive(Debug, Display, From, Error)]

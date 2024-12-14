@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::cmp::Ordering;
 use tokio::sync::RwLock;
 use std::collections::BTreeMap;
-use serde::{Deserialize, Serialize};
+//use serde::{Deserialize, Serialize};
 use serde_derive::{Serialize, Deserialize};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use crate::protocols::protocol::{DnsPacket, DnsRecord, QueryType, ResultCode};
 
-#[derive(Debug, error::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum CacheError {
     #[error("I/O Error: {0}")]
     Io(std::io::Error),
@@ -88,7 +88,7 @@ impl DomainEntry {
         self.record_types.insert(qtype, new_set);
     }
 
-    pub fn store_record(&self, rec: &DnsRecord) {
+    pub fn store_record(&mut self, rec: &DnsRecord) {
         self.updates += 1;
 
         let entry = RecordEntry {
@@ -124,7 +124,7 @@ impl DomainEntry {
                     }
                 }
                 RecordSet::NoRecords { ttl, timestamp, .. } => {
-                    if timestamp + Duration::seconds(*ttl as i64) > Local::now() {
+                    if *timestamp + Duration::seconds(*ttl as i64) > Local::now() {
                         CacheState::NegativeCache
                     } else {
                         CacheState::NotCached

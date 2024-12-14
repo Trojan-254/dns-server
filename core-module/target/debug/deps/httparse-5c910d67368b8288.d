@@ -1,0 +1,12 @@
+/home/sam/dns-server/core-module/target/debug/deps/libhttparse-5c910d67368b8288.rmeta: /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/lib.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/iter.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/macros.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/mod.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/swar.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/sse42.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/avx2.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/runtime.rs
+
+/home/sam/dns-server/core-module/target/debug/deps/httparse-5c910d67368b8288.d: /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/lib.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/iter.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/macros.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/mod.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/swar.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/sse42.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/avx2.rs /home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/runtime.rs
+
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/lib.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/iter.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/macros.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/mod.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/swar.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/sse42.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/avx2.rs:
+/home/sam/.cargo/registry/src/index.crates.io-6f17d22bba15001f/httparse-1.9.5/src/simd/runtime.rs:
