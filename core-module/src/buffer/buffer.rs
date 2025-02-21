@@ -308,7 +308,7 @@ where
 
 impl<'a, T> StreamPacketBuffer<'a, T>
 where
-    T: AsyncRead + Unpin + 'a,
+    T: AsyncRead + Unpin + 'a + std::marker::Unpin,
 {
     pub fn new(stream: &'a mut T) -> StreamPacketBuffer<'a, T> {
         StreamPacketBuffer {
@@ -321,7 +321,7 @@ where
 
 impl<'a, T> PacketBuffer for StreamPacketBuffer<'a, T>
 where
-    T: AsyncRead + 'a,
+    T: AsyncRead + 'a + std::marker::Unpin,
 {
     fn find_label(&self, _: &str) -> Option<usize> {
         None
@@ -334,7 +334,7 @@ where
     fn read(&mut self) -> Result<u8> {
         while self.pos >= self.buffer.len() {
             let mut local_buffer = [0; 1];
-            self.stream.read(&mut local_buffer)?;
+            self.stream.read(&mut local_buffer);
             self.buffer.push(local_buffer[0]);
         }
 
@@ -347,7 +347,7 @@ where
     fn get(&mut self, pos: usize) -> Result<u8> {
         while pos >= self.buffer.len() {
             let mut local_buffer = [0; 1];
-            self.stream.read(&mut local_buffer)?;
+            self.stream.read(&mut local_buffer);
             self.buffer.push(local_buffer[0]);
         }
 
@@ -357,7 +357,7 @@ where
     fn get_range(&mut self, start: usize, len: usize) -> Result<&[u8]> {
         while start + len > self.buffer.len() {
             let mut local_buffer = [0; 1];
-            self.stream.read(&mut local_buffer)?;
+            self.stream.read(&mut local_buffer);
             self.buffer.push(local_buffer[0]);
         }
 

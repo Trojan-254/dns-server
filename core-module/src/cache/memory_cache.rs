@@ -9,6 +9,7 @@ use serde_derive::{Serialize, Deserialize};
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
+
 use crate::protocols::protocol::{DnsPacket, DnsRecord, QueryType, ResultCode};
 
 #[derive(Debug, thiserror::Error)]
@@ -63,21 +64,23 @@ pub struct DomainCache {
 
 #[derive(Clone, Debug)]
 pub struct DomainEntry {
+    pub domain: String,
     pub record_types: DashMap<QueryType, RecordSet>,
     pub hits: u32,
     pub updates: u32,
 }
 
 impl DomainEntry {
-    pub fn new() -> Self {
+    pub fn new(domain: String) -> Self {
         DomainEntry {
+            domain: domain,
             record_types: DashMap::new(),
             hits: 0,
             updates: 0,
         }
     }
 
-    pub fn store_nxdomain(&self, qtype: QueryType, ttl: u32) {
+    pub fn store_nxdomain(&mut self, qtype: QueryType, ttl: u32) {
         self.updates += 1;
 
         let new_set = RecordSet::NoRecords {
@@ -188,10 +191,10 @@ impl Cache {
     ) {
         if let Some(domain_entry) = self.domain_entries.get(qname) {
             if increment_stats {
-                domain_entry.hits.fetch_add(1, Ordering::Relaxed);
+                domain_entry.hits += 1;
             }
 
-            domain_entry.fill_queryresult(qtype, result_vec);
+            domain_entry.fill_query_result(qtype, result_vec);
         }
     }
 
@@ -266,7 +269,7 @@ impl SynchronizedCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dns::protocol::{DnsRecord, QueryType, ResultCode, TransientTtl};
+    use crate::protocols::protocol::{DnsRecord, QueryType, ResultCode, TransientTtl};
 
     #[test]
     fn test_store_and_retrieve_multiple_records() {
